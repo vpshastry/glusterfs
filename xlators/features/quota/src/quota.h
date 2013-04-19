@@ -25,6 +25,12 @@
 #define CONTRIBUTION            "contri"
 #define VAL_LENGTH              8
 #define READDIR_BUF             4096
+#define QUOTA_UPDATE_USAGE_KEY  "quota-update-usage"
+
+#define GET_THIS_VOL(list_ptr) ((list_ptr)->my_vol)
+
+#define DID_CROSS_SOFT_LIMIT(soft_lim, prev_size, cur_size)               \
+        ((cur_size) >= (soft_lim) && (prev_size) < (soft_lim))
 
 #define QUOTA_SAFE_INCREMENT(lock, var)         \
         do {                                    \
@@ -46,7 +52,7 @@
                                  gf_quota_mt_##type);   \
                 if (!var) {                             \
                         gf_log ("", GF_LOG_ERROR,       \
-                                "out of memory :(");    \
+                                "out of memory");    \
                         ret = -1;                       \
                         goto label;                     \
                 }                                       \
@@ -96,6 +102,8 @@
                         goto label;                             \
         } while (0)
 
+
+
 struct quota_dentry {
         char            *name;
         uuid_t           par;
@@ -105,7 +113,9 @@ typedef struct quota_dentry quota_dentry_t;
 
 struct quota_inode_ctx {
         int64_t          size;
-        int64_t          limit;
+        int64_t          agg_size;
+        int64_t          hard_lim;
+        int64_t          soft_lim;
         struct iatt      buf;
         struct list_head parents;
         struct timeval   tv;
@@ -125,27 +135,74 @@ struct quota_local {
         int32_t      op_ret;
         int32_t      op_errno;
         int64_t      size;
-        int64_t      limit;
+        int64_t      hard_lim;
+        int64_t      soft_lim;
         char         just_validated;
         inode_t     *inode;
         call_stub_t *stub;
 };
 typedef struct quota_local quota_local_t;
 
+
+struct qd_vols_conf {
+        char                    *name;
+        inode_table_t           *itable;
+        int64_t                  log_timeout;
+        gf_boolean_t             is_any_child_down;
+        struct limits_level {
+                struct list_head         limit_head;
+                uint64_t                 time_out;
+                struct qd_vols_conf     *my_vol;
+        } below_soft, above_soft;
+};
+typedef struct qd_vols_conf qd_vols_conf_t;
+
+
 struct quota_priv {
-        int64_t           timeout;
-        gf_boolean_t      consider_statfs;
-        struct list_head  limit_head;
-        gf_lock_t         lock;
+        int64_t                 timeout;
+        gf_boolean_t            is_quota_on;
+        gf_boolean_t            consider_statfs;
+        struct list_head        limit_head;
+        qd_vols_conf_t        **qd_vols_conf;
+        gf_lock_t               lock;
 };
 typedef struct quota_priv quota_priv_t;
+
 
 struct limits {
         struct list_head  limit_list;
         char             *path;
         int64_t           value;
         uuid_t            gfid;
+        uint64_t          prev_size;
+        struct timeval    prev_log_tv;
+        // Make it uint/size_t
+        int64_t           hard_lim;
+        int64_t           soft_lim;
 };
 typedef struct limits     limits_t;
 
 uint64_t cn = 1;
+
+
+static inline uint64_t
+quota_time_elapsed (struct timeval *now, struct timeval *then)
+{
+        return (now->tv_sec - then->tv_sec);
+}
+
+
+int32_t
+quota_timeout (struct timeval *tv, int32_t timeout)
+{
+        struct timeval now       = {0,};
+        int32_t        timed_out = 0;
+
+        gettimeofday (&now, NULL);
+
+        if (quota_time_elapsed (&now, tv) >= timeout) {
+                timed_out = 1;
+        }
+
+        return timed_out;
+}
