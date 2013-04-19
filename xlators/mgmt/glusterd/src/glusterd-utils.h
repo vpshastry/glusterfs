@@ -188,6 +188,9 @@ glusterd_shd_start ();
 int32_t
 glusterd_shd_stop ();
 
+int32_t
+glusterd_qc_stop ();
+
 void
 glusterd_set_socket_filepath (char *sock_filepath, char *sockpath, size_t len);
 
@@ -226,6 +229,9 @@ glusterd_check_generate_start_nfs (void);
 
 int
 glusterd_check_generate_start_shd (void);
+
+int
+glusterd_check_generate_start_qc (void);
 
 int
 glusterd_nodesvcs_handle_graph_change (glusterd_volinfo_t *volinfo);
@@ -397,6 +403,9 @@ int
 glusterd_nfs_statedump (char *options, int option_cnt, char **op_errstr);
 gf_boolean_t
 glusterd_is_volume_replicate (glusterd_volinfo_t *volinfo);
+gf_boolean_t
+glusterd_is_quota_on (glusterd_volinfo_t *volinfo);
+
 gf_boolean_t
 glusterd_is_brick_decommissioned (glusterd_volinfo_t *volinfo, char *hostname,
                                   char *path);
