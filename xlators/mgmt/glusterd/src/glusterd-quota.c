@@ -31,7 +31,6 @@ __glusterd_handle_quota (rpcsvc_request_t *req)
         gf_cli_req                      cli_req = {{0,}};
         dict_t                         *dict = NULL;
         glusterd_op_t                   cli_op = GD_OP_QUOTA;
-        char                            operation[256] = {0, };
         char                           *volname = NULL;
         int32_t                         type = 0;
         char                            msg[2048] = {0,};
@@ -82,23 +81,6 @@ __glusterd_handle_quota (rpcsvc_request_t *req)
                goto out;
         }
 
-        switch (type) {
-        case GF_QUOTA_OPTION_TYPE_ENABLE:
-                strncpy (operation, "enable", sizeof (operation));
-                break;
-
-        case GF_QUOTA_OPTION_TYPE_DISABLE:
-                strncpy (operation, "disable", sizeof (operation));
-                break;
-
-        case GF_QUOTA_OPTION_TYPE_LIMIT_USAGE:
-                strncpy (operation, "limit-usage", sizeof (operation));
-                break;
-
-        case GF_QUOTA_OPTION_TYPE_REMOVE:
-                strncpy (operation, "remove", sizeof (operation));
-                break;
-        }
         ret = glusterd_op_begin_synctask (req, GD_OP_QUOTA, dict);
 
 out:
@@ -461,6 +443,12 @@ glusterd_quota_enable (glusterd_volinfo_t *volinfo, char **op_errstr,
                 goto out;
         }
 
+        ret = dict_set_dynstr (volinfo->dict, "quota", quota_status);
+        if (ret) {
+                gf_log ("", GF_LOG_ERROR, "dict set failed");
+                *op_errstr = gf_strdup ("its an error");
+                goto out;
+        }
         *op_errstr = gf_strdup ("Enabling quota has been successful");
 
         *crawl = _gf_true;
@@ -492,6 +480,13 @@ glusterd_quota_disable (glusterd_volinfo_t *volinfo, char **op_errstr)
                 goto out;
         }
 
+        quota_status = gf_strdup ("off");
+        if (!quota_status) {
+                gf_log ("", GF_LOG_ERROR, "memory allocation failed");
+                *op_errstr = gf_strdup ("Enabling quota has been unsuccessful");
+                goto out;
+        }
+
         ret = dict_set_dynstr (volinfo->dict, VKEY_FEATURES_QUOTA, quota_status);
         if (ret) {
                 gf_log ("", GF_LOG_ERROR, "dict set failed");
@@ -518,12 +513,14 @@ out:
 int32_t
 glusterd_quota_limit_usage (glusterd_volinfo_t *volinfo, dict_t *dict, char **op_errstr)
 {
-        int32_t          ret    = -1;
-        char            *path   = NULL;
-        char            *limit  = NULL;
-        char            *value  = NULL;
-        char             msg [1024] = {0,};
-        char            *quota_limits = NULL;
+        uint64_t         softlim_int    = 0;
+        int32_t          ret            = -1;
+        char            *path           = NULL;
+        char            *hard_limit     = NULL;
+        char            *soft_limit     = NULL;
+        char            *value          = NULL;
+        char             msg [1024]     = {0,};
+        char            *quota_limits   = NULL;
 
         GF_VALIDATE_OR_GOTO ("glusterd", dict, out);
         GF_VALIDATE_OR_GOTO ("glusterd", volinfo, out);
@@ -551,12 +548,15 @@ glusterd_quota_limit_usage (glusterd_volinfo_t *volinfo, dict_t *dict, char **op
                 goto out;
         }
 
-        ret = dict_get_str (dict, "limit", &limit);
+        ret = dict_get_str (dict, "limit", &hard_limit);
         if (ret) {
                 gf_log ("", GF_LOG_ERROR, "Unable to fetch quota limits" );
                 *op_errstr = gf_strdup ("failed to set limit");
                 goto out;
         }
+        gf_string2bytesize (hard_limit, &softlim_int);
+        softlim_int = (softlim_int * 9 )/10;
+        soft_limit = gf_uint64_2human_readable (softlim_int);
 
         if (quota_limits) {
                 ret = _glusterd_quota_remove_limits (&quota_limits, path, NULL);
@@ -568,15 +568,16 @@ glusterd_quota_limit_usage (glusterd_volinfo_t *volinfo, dict_t *dict, char **op
         }
 
         if (quota_limits == NULL) {
-                ret = gf_asprintf (&value, "%s:%s", path, limit);
+                ret = gf_asprintf (&value, "%s:%s:%s", path, soft_limit,
+                                   hard_limit);
                 if (ret == -1) {
                         gf_log ("", GF_LOG_ERROR, "Unable to allocate memory");
                         *op_errstr = gf_strdup ("failed to set limit");
                         goto out;
                 }
         } else {
-                ret = gf_asprintf (&value, "%s,%s:%s",
-                                   quota_limits, path, limit);
+                ret = gf_asprintf (&value, "%s,%s:%s:%s",
+                                   quota_limits, path, soft_limit, hard_limit);
                 if (ret == -1) {
                         gf_log ("", GF_LOG_ERROR, "Unable to allocate memory");
                         *op_errstr = gf_strdup ("failed to set limit");
@@ -600,6 +601,7 @@ glusterd_quota_limit_usage (glusterd_volinfo_t *volinfo, dict_t *dict, char **op
 
         ret = 0;
 out:
+        GF_FREE (soft_limit);
         return ret;
 }
 
@@ -670,7 +672,6 @@ glusterd_quota_remove_limits (glusterd_volinfo_t *volinfo, dict_t *dict, char **
 out:
         return ret;
 }
-
 
 int
 glusterd_op_quota (dict_t *dict, char **op_errstr, dict_t *rsp_dict)
@@ -759,8 +760,13 @@ create_vol:
         if (ret)
                 goto out;
 
-        if (GLUSTERD_STATUS_STARTED == volinfo->status)
-                ret = glusterd_check_generate_start_nfs ();
+        if (GLUSTERD_STATUS_STARTED == volinfo->status &&
+                        glusterd_is_quota_on (volinfo)) {
+                ret = glusterd_check_generate_start_qc ();
+
+                if (ret != 0)
+                        goto out;
+        }
 
         ret = 0;
 
