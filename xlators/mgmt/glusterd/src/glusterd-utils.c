@@ -3968,6 +3968,7 @@ glusterd_check_generate_start_qc ()
         return ret;
 }
 
+int
 glusterd_check_generate_start_quotad ()
 {
         int ret = 0;
@@ -4003,7 +4004,7 @@ glusterd_nodesvcs_batch_op (glusterd_volinfo_t *volinfo, int (*nfs_op) (),
                         goto out;
         }
 
-        ret = qc_op ();
+        ret = qd_op ();
         if (ret)
                 goto out;
 
