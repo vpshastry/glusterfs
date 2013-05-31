@@ -2457,6 +2457,7 @@ gf_cli_print_limit_list (char *volname, char *limit_list,
                         }
                 }
                 i++;
+        }
         } else {
 
         cli_out ("\tPath\t\t Hard-limit\t Soft-limit\t Used\t Available");
@@ -2490,15 +2491,16 @@ gf_cli_print_limit_list (char *volname, char *limit_list,
                         avail = hard_limit - used_space;
                         avail_str = gf_uint64_2human_readable (avail);
                         if (used_str == NULL) {
-                                cli_out ("%-20s %10s %10s %20"PRIu64 "20"PRIu64, path, hl, sl,
+                                cli_out ("%-20s %10s %10s %20"PRIu64 "%20"PRIu64, path, hl, sl,
                                          used_space, avail);
                         } else {
-                                cli_out ("%-20s %10s %10s %20"s %20s, path, hl, sl,
-                                        used_st, avail_str);
+                                cli_out ("%-20s %10s %10s %20s %20s", path, hl, sl,
+                                        used_str, avail_str);
                                 GF_FREE (used_str);
                         }
                 }
                 i++;
+        }
         }
 unmount:
 

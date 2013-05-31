@@ -110,7 +110,7 @@ __glusterd_handle_quota (rpcsvc_request_t *req)
         ret = glusterd_op_begin_synctask (req, GD_OP_QUOTA, dict);
 
 out:
-		+if (ret) {
+		if (ret) {
                 if (msg[0] == '\0')
                         snprintf (msg, sizeof (msg), "Operation failed");
                 ret = glusterd_op_send_cli_response (cli_op, ret, 0, req,
@@ -1155,25 +1155,4 @@ glusterd_quota_set_timeout (glusterd_volinfo_t *volinfo, dict_t *dict,
         gf_asprintf (op_errstr, "%s on volume %s set", key, volinfo->volname);
 
         return 0;
-}
-
-
-        ctx = glusterd_op_get_ctx();
-        if (ctx && (type == GF_QUOTA_OPTION_TYPE_ENABLE
-                    || type == GF_QUOTA_OPTION_TYPE_LIST)) {
-                /* Fuse mount req. only for enable & list-usage options*/
-                if (!glusterd_is_fuse_available ()) {
-                        gf_log ("glusterd", GF_LOG_ERROR, "Unable to open /dev/"
-                                "fuse (%s), quota command failed",
-                                strerror (errno));
-                        *op_errstr = gf_strdup ("Fuse unavailable");
-                        ret = -1;
-                        goto out;
-                }
-        }
-
-out:
-        gf_log ("", GF_LOG_DEBUG, "Returning %d", ret);
-
-        return ret;
 }

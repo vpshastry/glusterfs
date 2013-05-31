@@ -2420,7 +2420,7 @@ client_graph_builder (volgen_graph_t *graph, glusterd_volinfo_t *volinfo,
         int       ret      = 0;
         xlator_t *xl       = NULL;
         char     *volname  = NULL;
-        gf_boolean_t tmp_data = _gf_false;
+        data_t   *tmp_data = _gf_false;
         glusterd_conf_t *conf = THIS->private;
         GF_ASSERT (conf);
 
@@ -2450,7 +2450,7 @@ client_graph_builder (volgen_graph_t *graph, glusterd_volinfo_t *volinfo,
 
         /* Logic to make sure NFS doesn't have performance translators by
            default for a volume */
-        tmp_data = (dict_get (set_dict, "nfs-volume-file"));
+        tmp_data = dict_get (set_dict, "nfs-volume-file");
         if (!tmp_data)
                 ret = volgen_graph_set_options_generic (graph, set_dict, volname,
                                                         &perfxl_option_handler);
