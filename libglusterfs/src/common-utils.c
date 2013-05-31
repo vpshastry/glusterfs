@@ -776,12 +776,44 @@ gf_string2time (const char *str, uint32_t *n)
         if (errno == 0)
                 errno = old_errno;
 
-        if (!((tail[0] == '\0') ||
+        if (((tail[0] == '\0') ||
               ((tail[0] == 's') && (tail[1] == '\0')) ||
               ((tail[0] == 's') && (tail[1] == 'e') &&
 	       (tail[2] == 'c') && (tail[3] == '\0'))))
-                return -1;
+               goto out;
 
+        else if (((tail[0] == 'm') && (tail[1] == '\0')) ||
+                 ((tail[0] == 'm') && (tail[1] == 'i') &&
+                  (tail[2] == 'n') && (tail[3] == '\0'))) {
+                value = value * 60;
+                goto out;
+        }
+
+        else if (((tail[0] == 'h') && (tail[1] == '\0')) ||
+                 ((tail[0] == 'h') && (tail[1] == 'r') &&
+	         (tail[2] == '\0'))) {
+                value = value * 60 * 60;
+                goto out;
+        }
+
+        else if (((tail[0] == 'd') && (tail[1] == '\0')) ||
+                 ((tail[0] == 'd') && (tail[1] == 'a') &&
+	         (tail[2] == 'y') && (tail[3] == 's') &&
+                 (tail[4] == '\0'))) {
+                value = value * 24 * 60 * 60;
+                goto out;
+        }
+
+        else if (((tail[0] == 'w') && (tail[1] == '\0')) ||
+                 ((tail[0] == 'w') && (tail[1] == 'k') &&
+	         (tail[2] == '\0'))) {
+                value = value * 7 * 24 * 60 * 60;
+                goto out;
+        } else {
+                return -1;
+        }
+
+out:
         *n = value;
 
         return 0;
@@ -2511,5 +2543,44 @@ gf_get_hostname_from_ip (char *client_ip, char **hostname)
         if (client_ip_copy)
                 GF_FREE (client_ip_copy);
 
+        return ret;
+}
+
+int
+gf_get_soft_limit (char *limit, char *soft_limit)
+{
+        int   ret           = 0;
+        int   colon_count   = 0;
+        int   i             = 0;
+        int   len           = 0;
+
+        len = strlen (limit);
+        for (i = 0; (colon_count != 2); i++) {
+                if (limit[i] == ':')
+                        colon_count++;
+        }
+
+        strncpy (soft_limit, &limit[i], len - i);
+        return ret;
+}
+
+int
+gf_get_hard_limit (char *limit, char *hard_limit)
+{
+        int    ret               = 0;
+        int    i                 = 0;
+        int    hlbegin           = 0;
+
+        for (i = 0; limit[i]; i++) {
+                if (limit[i] == ':')
+                        break;
+        }
+        hlbegin = i + 1;
+        i++;
+
+        while (limit[i] != ':') {
+                i++;
+        }
+        strncpy (hard_limit, &limit[hlbegin], i - hlbegin);
         return ret;
 }

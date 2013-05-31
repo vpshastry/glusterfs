@@ -191,6 +191,12 @@ glusterd_shd_stop ();
 int32_t
 glusterd_qc_stop ();
 
+int32_t
+glusterd_quotad_start ();
+
+int32_t
+glusterd_quotad_stop ();
+
 void
 glusterd_set_socket_filepath (char *sock_filepath, char *sockpath, size_t len);
 
@@ -232,6 +238,9 @@ glusterd_check_generate_start_shd (void);
 
 int
 glusterd_check_generate_start_qc (void);
+
+int
+glusterd_check_generate_start_quotad (void);
 
 int
 glusterd_nodesvcs_handle_graph_change (glusterd_volinfo_t *volinfo);
@@ -534,4 +543,10 @@ glusterd_is_same_address (char *name1, char *name2);
 
 void
 gd_update_volume_op_versions (glusterd_volinfo_t *volinfo);
+
+int
+glusterd_is_volume_quota_enabled (glusterd_volinfo_t *volinfo);
+
+gf_boolean_t
+glusterd_all_volumes_with_quota_stopped ();
 #endif
