@@ -133,6 +133,7 @@ typedef struct {
         rpcsvc_t          *rpc;
         nodesrv_t         *shd;
         nodesrv_t         *nfs;
+        nodesrv_t         *quotad;
         nodesrv_t         *qc;
         struct pmap_registry *pmap;
         struct list_head  volumes;

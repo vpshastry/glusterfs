@@ -917,6 +917,31 @@ struct volopt_map_entry glusterd_volopt_map[] = {
           .op_version    = 1,
           .client_option = _gf_true
         },
+        { .key           = "features.default-soft-limit",
+          .voltype       = "features/quota",
+          .option        = "default-soft-limit",
+          .value         = "90%",
+          .type          = NO_DOC,
+          .op_version    = 2
+        },
+        { .key           = "features.soft-timeout",
+          .voltype       = "features/quotad",
+          .value         = "10",
+          .type          = NO_DOC,
+          .op_version    = 2
+        },
+        { .key           = "features.hard-timeout",
+          .voltype       = "features/quotad",
+          .value         = "2",
+          .type          = NO_DOC,
+          .op_version    = 2
+        },
+        { .key           = "features.alert-time",
+          .voltype       = "features/quotad",
+          .value         = "1w",
+          .type          = NO_DOC,
+          .op_version    = 2
+        },
         { .key           = "features.quota-deem-statfs",
           .voltype       = "features/quota",
           .option        = "deem-statfs",
