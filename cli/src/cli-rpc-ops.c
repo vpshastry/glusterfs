@@ -2322,22 +2322,31 @@ out:
 
 int32_t
 gf_cli_print_limit_list (char *volname, char *limit_list,
-                            char *op_errstr)
+                            char *op_errstr, uint32_t op_version,
+                            char *default_sl)
 {
-        int64_t  size            = 0;
-        int64_t  limit_value     = 0;
-        int32_t  i, j;
-        int32_t  len = 0, ret    = -1;
-        char     *size_str       = NULL;
-        char     path [PATH_MAX] = {0, };
-        char     ret_str [1024]  = {0, };
-        char     hard_lim [1024] = {0, };
-        char     soft_lim [1024] = {0, };
-        char     value [1024]    = {0, };
-        char     mountdir []     = "/tmp/mntXXXXXX";
-        char     abspath [PATH_MAX] = {0, };
-        char     *colon_ptr      = NULL;
-        runner_t runner          = {0,};
+        uint64_t  used_space             = 0;
+        uint64_t  hard_limit             = 0;
+        uint64_t  avail                  = 0;
+        int64_t   limit_value            = 0;
+        int32_t   i                      = 0;
+        int32_t   j                      = 0;
+        int32_t   len                    = 0;
+        int       ret                    = -1;
+        char     *used_str               = NULL;
+        char     *avail_str              = NULL;
+        char      path [PATH_MAX]        = {0, };
+        char      ret_str [1024]         = {0, };
+        char      hard_lim [1024]        = {0, };
+        char      soft_lim [1024]        = {0, };
+        char      value [1024]           = {0, };
+        char      mountdir []            = "/tmp/mntXXXXXX";
+        char      abspath [PATH_MAX]     = {0, };
+        char     *hl                     = NULL;
+        char     *sl                     = NULL;
+        char      *colon_ptr             = NULL;
+        runner_t  runner                 = {0,};
+        char     *sl_final               = NULL;
 
         GF_VALIDATE_OR_GOTO ("cli", volname, out);
         GF_VALIDATE_OR_GOTO ("cli", limit_list, out);
@@ -2378,50 +2387,111 @@ gf_cli_print_limit_list (char *volname, char *limit_list,
         }
 
         i = 0;
+        if (op_version == 1) {
 
-        cli_out ("\tpath\t\t  limit_set (soft/hard)\t\t     size");
-        cli_out ("-----------------------------------------------------------"
-                 "-----------------------");
-        while (i < len) {
-                j = 0;
+                cli_out ("\tpath\t\t  limit_set (soft/hard)\t\t     size");
+                cli_out ("-----------------------------------------------------"
+                         "-----------------------------");
+                while (i < len) {
+                        j = 0;
 
-                while (limit_list [i] != ',' && limit_list [i] != '\0') {
-                        path [j++] = limit_list[i++];
-                }
-                path [j] = '\0';
-                //here path[] contains both path and limit value
-
-                colon_ptr = strrchr (path, ':');
-                *colon_ptr = '\0';
-                strcpy (hard_lim, ++colon_ptr);
-
-                colon_ptr = strrchr (path, ':');
-                *colon_ptr = '\0';
-                strcpy (soft_lim, ++colon_ptr);
-
-                sprintf (value, "%s/%s", soft_lim, hard_lim);
-
-                snprintf (abspath, sizeof (abspath), "%s/%s", mountdir, path);
-
-                ret = sys_lgetxattr (abspath, "trusted.limit.list", (void *) ret_str, 4096);
-                if (ret < 0) {
-                        cli_out ("%-20s %25s", path, value);
-                } else {
-                        sscanf (ret_str, "%"PRId64",%"PRId64, &size,
-                                &limit_value);
-                        size_str = gf_uint64_2human_readable ((uint64_t) size);
-                        if (size_str == NULL) {
-                                cli_out ("%-20s %25s %20"PRId64, path,
-                                         value, size);
-                        } else {
-                                cli_out ("%-20s %25s %20s", path,
-                                         value, size_str);
-                                GF_FREE (size_str);
+                        while (limit_list [i] != ',' && limit_list [i] != '\0') {
+                                path [j++] = limit_list[i++];
                         }
-                }
-                i++;
-        }
+                        path [j] = '\0';
+                        //here path[] contains both path and limit value
 
+                        colon_ptr = strrchr (path, ':');
+                        *colon_ptr = '\0';
+                        strcpy (hard_lim, ++colon_ptr);
+
+                        colon_ptr = strrchr (path, ':');
+                        *colon_ptr = '\0';
+                        strcpy (soft_lim, ++colon_ptr);
+
+                        sprintf (value, "%s/%s", soft_lim, hard_lim);
+
+                        snprintf (abspath, sizeof (abspath), "%s/%s",
+                                  mountdir, path);
+
+                        ret = sys_lgetxattr (abspath, "trusted.limit.list",
+                                             (void *) ret_str, 4096);
+                        if (ret < 0) {
+                                cli_out ("%-20s %25s", path, value);
+                        } else {
+                                sscanf (ret_str, "%"PRId64",%"PRId64,
+                                        &used_space, &limit_value);
+                                used_str = gf_uint64_2human_readable
+                                                       ((uint64_t) used_space);
+                                if (used_str == NULL) {
+                                        cli_out ("%-20s %25s %20"PRId64, path,
+                                                 value, used_space);
+                                } else {
+                                        cli_out ("%-20s %25s %20s", path,
+                                                 value, used_str);
+                                        GF_FREE (used_str);
+                                }
+                        }
+                        i++;
+                }
+        } else {
+
+                cli_out ("\tPath\t\t Hard-limit\t Soft-limit\t Used\t "
+                         "Available");
+                cli_out ("-----------------------------------------------------"
+                         "-----------------------------");
+                while (i < len) {
+                        j = 0;
+                        sl = hl = NULL;
+
+                        while (limit_list [i] != ',' && limit_list [i] != '\0') {
+                                path [j++] = limit_list[i++];
+                        }
+                        path [j] = '\0';
+                        //here path[] contains information in the format:
+                        //<path>:<hard-limit>:<soft-limit>
+                        ret = gf_get_hard_limit (path, &hl);
+                        ret = gf_get_soft_limit (path, &sl);
+                        if (ret == 1)
+                                //soft limit present
+                                sl_final = sl;
+                        else
+                                sl_final = default_sl;
+                        colon_ptr = strchr (path, ':');
+                        *colon_ptr = '\0';
+
+                        snprintf (abspath, sizeof (abspath), "%s/%s", mountdir,
+                                  path);
+
+                        ret = sys_lgetxattr (abspath, "trusted.limit.list",
+                                             (void *) ret_str, 4096);
+                        if (ret < 0) {
+                                cli_out ("%-20s %10s %10s", path, hl, sl_final);
+                        } else {
+                                sscanf (ret_str, "%"PRId64",%"PRId64,
+                                        &used_space, &limit_value);
+                                used_str = gf_uint64_2human_readable
+                                                        (used_space);
+                                ret = gf_string2bytesize (hl, &hard_limit);
+
+                                avail = hard_limit - used_space;
+                                avail_str = gf_uint64_2human_readable (avail);
+                                if (used_str == NULL) {
+                                        cli_out ("%-20s %10s %10s %20"PRIu64
+                                                 "%20"PRIu64, path, hl,
+                                                 sl_final, used_space, avail);
+                                } else {
+                                        cli_out ("%-20s %10s %10s %20s %20s",
+                                                 path, hl, sl_final, used_str,
+                                                 avail_str);
+                                        GF_FREE (used_str);
+                                }
+                        }
+                        i++;
+                        GF_FREE (hl);
+                        GF_FREE (sl);
+                }
+        }
 unmount:
 
         runinit (&runner);
@@ -2453,6 +2523,8 @@ gf_cli_quota_cbk (struct rpc_req *req, struct iovec *iov,
         int32_t            type       = 0;
         char               msg[1024]  = {0,};
         call_frame_t      *frame      = NULL;
+        uint32_t           op_version = 1;
+        char              *default_sl = NULL;
 
         if (-1 == req->rpc_status) {
                 goto out;
@@ -2485,7 +2557,7 @@ gf_cli_quota_cbk (struct rpc_req *req, struct iovec *iov,
                                         rsp.dict.dict_len,
                                         &dict);
                 if (ret < 0) {
-                        gf_log ("glusterd", GF_LOG_ERROR,
+                        gf_log ("cli", GF_LOG_ERROR,
                                 "failed to "
                                 "unserialize req-buffer to dictionary");
                         goto out;
@@ -2501,6 +2573,16 @@ gf_cli_quota_cbk (struct rpc_req *req, struct iovec *iov,
         if (ret)
                 gf_log (frame->this->name, GF_LOG_TRACE,
                         "failed to get limit_list");
+
+        ret = dict_get_uint32 (dict, "op-version", &op_version);
+        if (ret)
+                gf_log (frame->this->name, GF_LOG_TRACE, "failed to get "
+                        "op-version");
+
+        ret = dict_get_str (dict, "default-soft-limit", &default_sl);
+        if (ret)
+                gf_log (frame->this->name, GF_LOG_TRACE, "failed to get "
+                        "default soft limit");
 
         ret = dict_get_int32 (dict, "type", &type);
         if (ret)
@@ -2522,7 +2604,8 @@ gf_cli_quota_cbk (struct rpc_req *req, struct iovec *iov,
                 if (limit_list) {
                         gf_cli_print_limit_list (volname,
                                                     limit_list,
-                                                    rsp.op_errstr);
+                                                    rsp.op_errstr, op_version,
+                                                    default_sl);
                 } else {
                         gf_log ("cli", GF_LOG_INFO, "Received resp to quota "
                                 "command ");
