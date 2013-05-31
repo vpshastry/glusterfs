@@ -1422,6 +1422,9 @@ server_graph_builder (volgen_graph_t *graph, glusterd_volinfo_t *volinfo,
         char     *vgname                  = NULL;
         char     *vg                      = NULL;
         glusterd_brickinfo_t *brickinfo   = NULL;
+        glusterd_conf_t *conf             = THIS->private;
+        char     *value                   = NULL;
+        GF_ASSERT (conf);
 
         brickinfo = param;
         path      = brickinfo->path;
@@ -1587,13 +1590,25 @@ server_graph_builder (volgen_graph_t *graph, glusterd_volinfo_t *volinfo,
         if (ret)
                 return -1;
 
+//      if (conf->op_version > GD_MIN_OP_VERSION) {
         xl = volgen_graph_add (graph, "features/quota", volname);
-        if (!xl) {
-                ret = -1;
-                goto out;
+        if (!xl)
+                return -1;
+        ret = glusterd_volinfo_get (volinfo, VKEY_FEATURES_QUOTA, &value);
+        if (value) {
+                ret = xlator_set_option (xl, "server-quota", value);
+                if (ret)
+                        return -1;
         }
+/*      ret = xlator_set_option (xl, "version", GD_MAX_OP_VERSION);
+        if (ret)
+                return -1; */
+//        }
+/*          ret = check_and_add_debug_xl (graph, set_dict, volname, "quota");
+          if (ret)
+                    return -1; */
 
-        if (dict_get_str_boolean (set_dict, "features.read-only", 0) &&
+         if (dict_get_str_boolean (set_dict, "features.read-only", 0) &&
             dict_get_str_boolean (set_dict, "features.worm",0)) {
                 gf_log (THIS->name, GF_LOG_ERROR,
                         "read-only and worm cannot be set together");
@@ -2431,7 +2446,9 @@ client_graph_builder (volgen_graph_t *graph, glusterd_volinfo_t *volinfo,
         int       ret      = 0;
         xlator_t *xl       = NULL;
         char     *volname  = NULL;
-        gf_boolean_t tmp_data = _gf_false;
+        data_t   *tmp_data = NULL;
+        glusterd_conf_t *conf = THIS->private;
+        GF_ASSERT (conf);
 
         volname = volinfo->volname;
         ret = volgen_graph_build_clients (graph, volinfo, set_dict, param);
@@ -2442,10 +2459,24 @@ client_graph_builder (volgen_graph_t *graph, glusterd_volinfo_t *volinfo,
         if (ret)
                 goto out;
 
+/*      if (conf->op_version == GD_MIN_OP_VERSION) {
+ *              ret = glusterd_volinfo_get_boolean (volinfo,
+ *                                                  VKEY_FEATURES_QUOTA);
+ *              if (ret == -1)
+ *                       goto out;
+ *               if (ret) {
+ *                       xl = volgen_graph_add (graph, "features/quota",
+ *                                              volname);
+ *                       if (!xl) {
+ *                               ret = -1;
+ *                               goto out;
+ *                       }
+ *               }
+ *       } */
+
         /* Logic to make sure NFS doesn't have performance translators by
            default for a volume */
-        tmp_data = (dict_get (set_dict, "nfs-volume-file") ||
-                    dict_get (set_dict, "quota-volume-file"));
+        tmp_data = dict_get (set_dict, "nfs-volume-file");
         if (!tmp_data)
                 ret = volgen_graph_set_options_generic (graph, set_dict, volname,
                                                         &perfxl_option_handler);
@@ -2711,9 +2742,9 @@ nfs_option_handler (volgen_graph_t *graph,
         return 0;
 }
 
-static int
-qc_option_handler (volgen_graph_t *graph,
-                   struct volopt_map_entry *vme, void *param)
+int
+quotad_option_handler (volgen_graph_t *graph, struct volopt_map_entry *vme,
+                       void *param)
 {
         xlator_t *xl = NULL;
         char *opt_str = NULL;
@@ -2721,14 +2752,10 @@ qc_option_handler (volgen_graph_t *graph,
         glusterd_volinfo_t *volinfo = NULL;
 
         volinfo = param;
-
         xl = first_of (graph);
 
-        if (!volinfo || (volinfo->volname[0] == '\0'))
-                return 0;
-
-        if (!strcmp (vme->option, "*.soft-limit")) {
-                ret = gf_asprintf (&opt_str, "%s.soft-limit", volinfo->volname);
+        if (!strcmp (vme->option, "*.soft-timeout")) {
+                ret = gf_asprintf (&opt_str, "%s.soft-timeout", volinfo->volname);
                 if (-1 != ret) {
                         ret = xlator_set_option (xl, opt_str, vme->value);
                         GF_FREE (opt_str);
@@ -2737,25 +2764,45 @@ qc_option_handler (volgen_graph_t *graph,
                         return -1;
         }
 
-        if (!strcmp (vme->option, "*.hard-limit")) {
-                ret = gf_asprintf (&opt_str, "%s.hard-limit", volinfo->volname);
-                if (-1 != ret) {
-                        ret = xlator_set_option (xl, opt_str, vme->value);
-                        GF_FREE (opt_str);
-                }
-                if (ret)
-                        return -1;
+        if (!strcmp (vme->option, "*.hard-timeout")) {
+                ret = gf_asprintf (&opt_str, "%s.hard-timeout", volinfo->volname);
+                        if (-1 != ret) {
+                                ret = xlator_set_option (xl, opt_str, vme->value);
+                                GF_FREE (opt_str);
+                        }
+                        if (ret)
+                                return -1;
         }
 
-        if (!strcmp (vme->option, "*.limit-set")) {
+        if (!strcmp (vme->option, "limit-set")) {
                 ret = gf_asprintf (&opt_str, "%s.limit-set", volinfo->volname);
-                if (-1 != ret) {
-                        ret = xlator_set_option (xl, opt_str, vme->value);
-                        GF_FREE (opt_str);
-                }
+                        if (-1 != ret) {
+                                ret = xlator_set_option (xl, opt_str, vme->value);
+                                GF_FREE (opt_str);
+                        }
                 if (ret)
                         return -1;
         }
+        if (!strcmp (vme->option, "!*.alert-time")) {
+                ret = gf_asprintf (&opt_str, "%s.alert-time", volinfo->volname);
+                        if (-1 != ret) {
+                                ret = xlator_set_option (xl, opt_str, vme->value);
+                                GF_FREE (opt_str);
+                        }
+                if (ret)
+                        return -1;
+        }
+        if (!strcmp (vme->option, "default-soft-limit")) {
+                ret = gf_asprintf (&opt_str, "%s.default-soft-limit",
+                                   volinfo->volname);
+                        if (-1 != ret) {
+                                ret = xlator_set_option (xl, opt_str, vme->value);
+                                GF_FREE (opt_str);
+                        }
+                if (ret)
+                        return -1;
+        }
+
         return 0;
 }
 
@@ -3044,107 +3091,6 @@ build_nfs_graph (volgen_graph_t *graph, dict_t *mod_dict)
         return ret;
 }
 
-
-static int
-build_qc_graph (volgen_graph_t *graph, dict_t *mod_dict)
-{
-        volgen_graph_t      cgraph        = {0,};
-        glusterd_volinfo_t *voliter       = NULL;
-        xlator_t           *this          = NULL;
-        glusterd_conf_t    *priv          = NULL;
-        dict_t             *set_dict      = NULL;
-        xlator_t           *quota_xlator  = NULL;
-        int                 ret           = 0;
-        char               *volname       = NULL;
-        data_t             *data          = NULL;
-
-        this = THIS;
-        GF_ASSERT (this);
-        priv = this->private;
-        GF_ASSERT (priv);
-
-        set_dict = dict_new ();
-        if (!set_dict) {
-                gf_log ("", GF_LOG_ERROR, "Out of memory");
-                return -1;
-        }
-
-        quota_xlator = volgen_graph_add_as (graph, "features/quotad",
-                                            "quotad");
-        if (!quota_xlator) {
-                ret     = -1;
-                goto    out;
-        }
-        /* Set all the quota client options */
-
-        list_for_each_entry (voliter, &priv->volumes, vol_list) {
-                if (voliter->status != GLUSTERD_STATUS_STARTED ||
-                                !glusterd_is_quota_on (voliter))
-                        continue;
-
-                ret = dict_set_str (set_dict, "quota-volume-file", "yes");
-                if (ret)
-                        goto out;
-
-                ret = dict_set_uint32 (set_dict, "trusted-client",
-                                       GF_CLIENT_TRUSTED);
-                if (ret)
-                        goto out;
-
-                if (mod_dict && (data = dict_get (mod_dict, "volume-name"))) {
-                        volname = data->data;
-                        if (strcmp (volname, voliter->volname) == 0)
-                                dict_copy (mod_dict, set_dict);
-                }
-
-                memset (&cgraph, 0, sizeof (cgraph));
-                ret = build_client_graph (&cgraph, voliter, set_dict);
-                if (ret)
-                        goto out;
-
-                if (mod_dict) {
-                        dict_copy (mod_dict, set_dict);
-                        ret = volgen_graph_set_options_generic (&cgraph, set_dict, voliter,
-                                                                basic_option_handler);
-                } else {
-                        ret = volgen_graph_set_options_generic (&cgraph, voliter->dict, voliter,
-                                                                basic_option_handler);
-                }
-
-                if (ret)
-                        goto out;
-
-                ret = volgen_graph_merge_sub (graph, &cgraph, 1);
-                if (ret)
-                        goto out;
-                ret = dict_reset (set_dict);
-                if (ret)
-                        goto out;
-        }
-
-        list_for_each_entry (voliter, &priv->volumes, vol_list) {
-
-                if (mod_dict) {
-                        ret = volgen_graph_set_options_generic (graph, mod_dict, voliter,
-                                                                qc_option_handler);
-                } else {
-                        ret = volgen_graph_set_options_generic (graph, voliter->dict, voliter,
-                                                                qc_option_handler);
-                }
-
-                if (ret)
-                        gf_log ("glusterd", GF_LOG_WARNING, "Could not set "
-                                 "vol-options for the volume %s", voliter->volname);
-        }
-
- out:
-        gf_log ("glusterd", GF_LOG_DEBUG, "Returning %d", ret);
-        dict_destroy (set_dict);
-
-        return ret;
-}
-
-
 /****************************
  *
  * Volume generation interface
@@ -3231,7 +3177,103 @@ glusterd_generate_brick_volfile (glusterd_volinfo_t *volinfo,
         return ret;
 }
 
+static int
+build_quotad_graph (volgen_graph_t *graph, dict_t *mod_dict)
+{
+        volgen_graph_t     cgraph         = {0};
+        glusterd_volinfo_t *voliter       = NULL;
+        xlator_t           *this          = NULL;
+        glusterd_conf_t    *priv          = NULL;
+        dict_t             *set_dict      = NULL;
+        int                ret            = 0;
+        xlator_t           *quotad_xl     = NULL;
 
+        this = THIS;
+        priv = this->private;
+
+        set_dict = dict_new ();
+        if (!set_dict) {
+                ret = -ENOMEM;
+                goto out;
+        }
+
+        quotad_xl = volgen_graph_add_as (graph, "features/quotad", "quotad");
+        if (!quotad_xl) {
+                ret = -1;
+                goto out;
+        }
+
+        list_for_each_entry (voliter, &priv->volumes, vol_list) {
+                if (voliter->status != GLUSTERD_STATUS_STARTED)
+                        continue;
+
+                if (1 != glusterd_is_volume_quota_enabled (voliter))
+                        continue;
+
+                ret = dict_set_uint32 (set_dict, "trusted-client",
+                                       GF_CLIENT_TRUSTED);
+                if (ret)
+                        goto out;
+
+                dict_copy (voliter->dict, set_dict);
+                if (mod_dict)
+                        dict_copy (mod_dict, set_dict);
+
+                memset (&cgraph, 0, sizeof (cgraph));
+                ret = volgen_graph_build_clients (&cgraph, voliter, set_dict,
+                                                  NULL);
+                if (ret)
+                        goto out;
+
+                ret = volume_volgen_graph_build_clusters (&cgraph, voliter);
+                if (ret) {
+                        ret = -1;
+                        goto out;
+                }
+
+                if (mod_dict) {
+                        dict_copy (mod_dict, set_dict);
+                        ret = volgen_graph_set_options_generic (&cgraph, set_dict,
+                                                        voliter,
+                                                        basic_option_handler);
+                } else {
+                        ret = volgen_graph_set_options_generic (&cgraph,
+                                                                voliter->dict,
+                                                                voliter,
+                                                                basic_option_handler);
+                }
+                if (ret)
+                        goto out;
+
+                ret = volgen_graph_merge_sub (graph, &cgraph, 1);
+                if (ret)
+                        goto out;
+
+                ret = dict_reset (set_dict);
+                if (ret)
+                        goto out;
+        }
+
+        list_for_each_entry (voliter, &priv->volumes, vol_list) {
+                if (mod_dict) {
+                        ret = volgen_graph_set_options_generic (graph, mod_dict,
+                                                                voliter,
+                                                        quotad_option_handler);
+                } else {
+                        ret = volgen_graph_set_options_generic (graph,
+                                                         voliter->dict, voliter,
+                                                         quotad_option_handler);
+                }
+
+                if (ret)
+                        gf_log (THIS->name, GF_LOG_ERROR, "Failed to set "
+                                "options for the volume %s", voliter->volname);
+        }
+out:
+        if (set_dict)
+                dict_unref (set_dict);
+        return ret;
+}
 
 static void
 get_vol_tstamp_file (char *filename, glusterd_volinfo_t *volinfo)
@@ -3498,16 +3540,16 @@ out:
         return ret;
 }
 
-int32_t
-glusterd_create_qc_volfile (xlator_t *this, dict_t *dict, char *svc)
+int
+glusterd_create_quotad_volfile ()
 {
-        char                     filepath[PATH_MAX]     = {0,};
-        glusterd_conf_t         *conf                   = THIS->private;
+        char             filepath[PATH_MAX] = {0,};
+        glusterd_conf_t *conf               = THIS->private;
 
-        glusterd_get_nodesvc_volfile ("quotad", conf->workdir, filepath,
-                                      sizeof (filepath));
-
-        return glusterd_create_global_volfile (build_qc_graph, filepath, NULL);
+        glusterd_get_nodesvc_volfile ("quotad", conf->workdir,
+                                            filepath, sizeof (filepath));
+        return glusterd_create_global_volfile (build_quotad_graph,
+                                               filepath, NULL);
 }
 
 int

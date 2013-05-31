@@ -776,12 +776,44 @@ gf_string2time (const char *str, uint32_t *n)
         if (errno == 0)
                 errno = old_errno;
 
-        if (!((tail[0] == '\0') ||
+        if (((tail[0] == '\0') ||
               ((tail[0] == 's') && (tail[1] == '\0')) ||
               ((tail[0] == 's') && (tail[1] == 'e') &&
 	       (tail[2] == 'c') && (tail[3] == '\0'))))
-                return -1;
+               goto out;
 
+        else if (((tail[0] == 'm') && (tail[1] == '\0')) ||
+                 ((tail[0] == 'm') && (tail[1] == 'i') &&
+                  (tail[2] == 'n') && (tail[3] == '\0'))) {
+                value = value * 60;
+                goto out;
+        }
+
+        else if (((tail[0] == 'h') && (tail[1] == '\0')) ||
+                 ((tail[0] == 'h') && (tail[1] == 'r') &&
+	         (tail[2] == '\0'))) {
+                value = value * 60 * 60;
+                goto out;
+        }
+
+        else if (((tail[0] == 'd') && (tail[1] == '\0')) ||
+                 ((tail[0] == 'd') && (tail[1] == 'a') &&
+	         (tail[2] == 'y') && (tail[3] == 's') &&
+                 (tail[4] == '\0'))) {
+                value = value * 24 * 60 * 60;
+                goto out;
+        }
+
+        else if (((tail[0] == 'w') && (tail[1] == '\0')) ||
+                 ((tail[0] == 'w') && (tail[1] == 'k') &&
+	         (tail[2] == '\0'))) {
+                value = value * 7 * 24 * 60 * 60;
+                goto out;
+        } else {
+                return -1;
+        }
+
+out:
         *n = value;
 
         return 0;
@@ -2564,4 +2596,71 @@ gf_get_hostname_from_ip (char *client_ip, char **hostname)
                 GF_FREE (client_ip_copy);
 
         return ret;
+}
+
+int
+gf_get_soft_limit (char *limit, char **soft_limit)
+{
+        int   colon_count   = 0;
+        int   i             = 0;
+        int   len           = 0;
+        char *sl            = NULL;
+
+        len = strlen (limit);
+        for (i = 0; i < len; i++) {
+                if (limit[i] == ':')
+                        colon_count++;
+                if (colon_count == 2)
+                        break;
+        }
+
+        if (colon_count != 2) {
+                gf_log ("common-utils", GF_LOG_INFO, "Soft-limit absent");
+                return -1;
+        }
+
+        sl = GF_CALLOC (len - i, sizeof (char), gf_common_mt_char);
+        if (!sl)
+                return -1;
+        strncpy (sl, &limit[i+1], len - i - 1);
+        *soft_limit = sl;
+
+        return 1;
+}
+
+int
+gf_get_hard_limit (char *limit, char **hard_limit)
+{
+        int    i                 = 0;
+        int    hlbegin           = 0;
+        int    len               = 0;
+        char  *hl                = NULL;
+
+        len = strlen (limit);
+
+        for (i = 0; i < len; i++) {
+                if (limit[i] == ':')
+                        break;
+        }
+
+        if (i == len) {
+                gf_log ("common-utils", GF_LOG_INFO, "Hard limit not found");
+                return -1;
+        }
+
+        hlbegin = i + 1;
+        i++;
+
+        while ((limit[i] != '\0') && (limit[i] != ':')) {
+                i++;
+        }
+
+        hl = GF_CALLOC (i - hlbegin + 1, sizeof (char), gf_common_mt_char);
+        if (!hl)
+                return -1;
+
+        strncpy (hl, &limit[hlbegin], i - hlbegin);
+        *hard_limit = hl;
+
+        return 0;
 }

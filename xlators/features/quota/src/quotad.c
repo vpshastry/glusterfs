@@ -951,7 +951,7 @@ struct volume_options options[] = {
          .default_value = "2",
          .description = ""
         },
-        {.key = {"*.log-timeout"},
+        {.key = {"*.alert-time"},
          .type = GF_OPTION_TYPE_SIZET,
          .min = 0,
          .max = LONG_MAX,

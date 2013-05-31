@@ -192,7 +192,10 @@ int32_t
 glusterd_shd_stop ();
 
 int32_t
-glusterd_qc_stop ();
+glusterd_quotad_start ();
+
+int32_t
+glusterd_quotad_stop ();
 
 void
 glusterd_set_socket_filepath (char *sock_filepath, char *sockpath, size_t len);
@@ -234,7 +237,7 @@ int
 glusterd_check_generate_start_shd (void);
 
 int
-glusterd_check_generate_start_qc (void);
+glusterd_check_generate_start_quotad (void);
 
 int
 glusterd_nodesvcs_handle_graph_change (glusterd_volinfo_t *volinfo);
@@ -539,4 +542,13 @@ void
 gd_update_volume_op_versions (glusterd_volinfo_t *volinfo);
 char*
 gd_peer_uuid_str (glusterd_peerinfo_t *peerinfo);
+
+int
+glusterd_is_volume_quota_enabled (glusterd_volinfo_t *volinfo);
+
+gf_boolean_t
+glusterd_all_volumes_with_quota_stopped ();
+
+gf_boolean_t
+glusterd_do_i_own_the_lock ();
 #endif
