@@ -1588,12 +1588,6 @@ server_graph_builder (volgen_graph_t *graph, glusterd_volinfo_t *volinfo,
         if (ret)
                 return -1;
 
-        xl = volgen_graph_add (graph, "features/quota", volname);
-        if (!xl) {
-                ret = -1;
-                goto out;
-        }
-
 //      if (conf->op_version > GD_MIN_OP_VERSION) {
         xl = volgen_graph_add (graph, "features/quota", volname);
         if (!xl)
@@ -3657,7 +3651,6 @@ glusterd_create_quotad_volfile ()
 {
         char             filepath[PATH_MAX] = {0,};
         glusterd_conf_t *conf               = THIS->private;
-        dict_t          *mod_dict           = NULL;
 
         glusterd_get_nodesvc_volfile ("quotad", conf->workdir,
                                             filepath, sizeof (filepath));

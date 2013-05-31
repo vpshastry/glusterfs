@@ -435,7 +435,7 @@ glusterd_quota_get_limit_usages (glusterd_conf_t *priv,
                                 goto out;
 
                         ret_str = _glusterd_quota_get_limit_usages (volinfo, path, op_errstr);
-                        if (list_str[0] != '\0')
+                        if (list_str[0] != '\0' && ret_str)
                                 strncat (list_str, ",", strlen (","));
                         if (ret_str)
                                 strncat (list_str, ret_str, strlen (ret_str));
@@ -492,12 +492,6 @@ glusterd_quota_enable (glusterd_volinfo_t *volinfo, char **op_errstr,
                 goto out;
         }
 
-        ret = dict_set_dynstr (volinfo->dict, "quota", quota_status);
-        if (ret) {
-                gf_log ("", GF_LOG_ERROR, "dict set failed");
-                *op_errstr = gf_strdup ("its an error");
-                goto out;
-        }
         *op_errstr = gf_strdup ("Enabling quota has been successful");
 
         *crawl = _gf_true;
@@ -540,13 +534,6 @@ glusterd_quota_disable (glusterd_volinfo_t *volinfo, char **op_errstr)
         if (!quota_status) {
                 gf_log (this->name, GF_LOG_ERROR, "memory allocation failed");
                 *op_errstr = gf_strdup ("Disabling quota has been unsuccessful");
-                goto out;
-        }
-
-        quota_status = gf_strdup ("off");
-        if (!quota_status) {
-                gf_log (this->name, GF_LOG_ERROR, "memory allocation failed");
-                *op_errstr = gf_strdup ("Enabling quota has been unsuccessful");
                 goto out;
         }
 
