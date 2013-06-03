@@ -925,6 +925,7 @@ struct volopt_map_entry glusterd_volopt_map[] = {
         },
         { .key           = "features.soft-timeout",
           .voltype       = "features/quotad",
+          .value         = "10",
           .type          = NO_DOC,
           .op_version    = 2
         },
@@ -955,12 +956,12 @@ struct volopt_map_entry glusterd_volopt_map[] = {
           .op_version    = 2,
           .client_option = _gf_true
         },
-        { .key           = "features.*.soft-timeout",
+        { .key           = "features.soft-timeout",
           .voltype       = "features/quotad",
           .op_version    = 2,
           .type          = DOC,
         },
-        { .key           = "features.*.hard-timeout",
+        { .key           = "features.hard-timeout",
           .voltype       = "features/quotad",
           .op_version    = 2,
           .type          = DOC,

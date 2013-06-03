@@ -442,7 +442,7 @@ qd_log_usage (xlator_t *this, qd_vols_conf_t *this_vol, limits_t *entry,
         } else if (cur_size > entry->soft_lim &&
                    quota_timeout (&entry->prev_log_tv, this_vol->log_timeout)) {
                 entry->prev_log_tv = cur_time;
-                gf_log (this->name, GF_LOG_WARNING, "Usage %ld %s ",
+                gf_log (this->name, GF_LOG_WARNING, "Usage %ld %s "
                         " limit for %s", entry->soft_lim,
                         (cur_size > entry->hard_lim)? "has reached hard": "is above soft",
                         entry->path);
@@ -946,7 +946,7 @@ struct volume_options options[] = {
          .default_value = "2",
          .description = ""
         },
-        {.key = {"*.log-timeout"},
+        {.key = {"*.alert-timeout"},
          .type = GF_OPTION_TYPE_SIZET,
          .min = 0,
          .max = LONG_MAX,
