@@ -920,25 +920,21 @@ struct volopt_map_entry glusterd_volopt_map[] = {
         { .key           = "features.default-soft-limit",
           .voltype       = "features/quota",
           .option        = "default-soft-limit",
-          .value         = "90%",
           .type          = NO_DOC,
           .op_version    = 2
         },
         { .key           = "features.soft-timeout",
           .voltype       = "features/quotad",
-          .value         = "10",
           .type          = NO_DOC,
           .op_version    = 2
         },
         { .key           = "features.hard-timeout",
           .voltype       = "features/quotad",
-          .value         = "2",
           .type          = NO_DOC,
           .op_version    = 2
         },
         { .key           = "features.alert-time",
           .voltype       = "features/quotad",
-          .value         = "1w",
           .type          = NO_DOC,
           .op_version    = 2
         },
@@ -951,16 +947,6 @@ struct volopt_map_entry glusterd_volopt_map[] = {
           .validate_fn   = validate_quota,
           .client_option = _gf_true
         },
-        {.key            = "features.quota",
-         .voltype        = "features/quota",
-         .option         = "quota",
-         .value          = "off",
-         .type           = DOC,
-         .op_version     = 2,
-         .validate_fn    = validate_quota,
-         .client_option  = _gf_true
-        },
-
         /* Quota client xlator options */
         { .key           = VKEY_FEATURES_LIMIT_USAGE,
           .voltype       = "features/quotad",
