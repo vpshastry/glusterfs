@@ -3997,7 +3997,7 @@ glusterd_nodesvcs_batch_op (glusterd_volinfo_t *volinfo, int (*nfs_op) (),
         if (ret)
                 goto out;
 
-        if (volinfo && !glusterd_is_volume_replicate (volinfo)) {
+        if (volinfo && glusterd_is_volume_replicate (volinfo)) {
                 ret = shd_op ();
                 if (ret)
                         goto out;
@@ -4010,7 +4010,6 @@ glusterd_nodesvcs_batch_op (glusterd_volinfo_t *volinfo, int (*nfs_op) (),
                 if (ret)
                         goto out;
         }
-
 out:
         return ret;
 }
