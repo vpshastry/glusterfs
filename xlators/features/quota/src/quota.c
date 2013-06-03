@@ -343,7 +343,7 @@ quota_get_limit_value (inode_t *inode, xlator_t *this, int64_t *n)
 
         list_for_each_entry (limit_node, &priv->limit_head, limit_list) {
                 if (strcmp (limit_node->path, path) == 0) {
-                        *n = limit_node->value;
+                        *n = limit_node->hard_lim;
                         break;
                 }
         }
@@ -497,21 +497,18 @@ int32_t
 quota_lookup (call_frame_t *frame, xlator_t *this, loc_t *loc,
               dict_t *xattr_req)
 {
-        /* jump to STACK_WIND if quota is off */
         quota_priv_t       *priv        = NULL;
-
-        priv = this->private;
-
-        if (!priv->is_quota_on)
-                goto wind;
-        /* ---------------------------------- */
-
         int32_t             ret         = -1;
         limits_t           *limit_node  = NULL;
         gf_boolean_t        dict_newed  = _gf_false;
         quota_local_t      *local       = NULL;
         int64_t             hard_lim    = -1;
         int64_t             soft_lim    = -1;
+
+        priv = this->private;
+
+        WIND_IF_QUOTAOFF (priv->is_quota_on, wind);
+
 
         list_for_each_entry (limit_node, &priv->limit_head, limit_list) {
                 if (strcmp (limit_node->path, loc->path) == 0) {
@@ -693,21 +690,17 @@ quota_writev (call_frame_t *frame, xlator_t *this, fd_t *fd,
               struct iovec *vector, int32_t count, off_t off,
               uint32_t flags, struct iobref *iobref, dict_t *xdata)
 {
-        /* jump to STACK_WIND if quota is off */
         quota_priv_t       *priv        = NULL;
-
-        priv = this->private;
-
-        if (!priv->is_quota_on)
-                goto wind;
-        /* ---------------------------------- */
-
         int32_t            ret     = -1, op_errno = EINVAL;
         int32_t            parents = 0;
         uint64_t           size    = 0;
         quota_local_t     *local   = NULL;
         quota_inode_ctx_t *ctx     = NULL;
         quota_dentry_t    *dentry  = NULL;
+
+        priv = this->private;
+
+        WIND_IF_QUOTAOFF (priv->is_quota_on, wind);
 
         GF_ASSERT (frame);
         GF_VALIDATE_OR_GOTO ("quota", this, unwind);
@@ -783,17 +776,13 @@ int32_t
 quota_mkdir (call_frame_t *frame, xlator_t *this, loc_t *loc, mode_t mode,
              mode_t umask, dict_t *xdata)
 {
-        /* jump to STACK_WIND if quota is off */
         quota_priv_t       *priv        = NULL;
+        int32_t        ret            = 0, op_errno = 0;
+        quota_local_t *local          = NULL;
 
         priv = this->private;
 
-        if (!priv->is_quota_on)
-                goto wind;
-        /* ---------------------------------- */
-
-        int32_t        ret            = 0, op_errno = 0;
-        quota_local_t *local          = NULL;
+        WIND_IF_QUOTAOFF (priv->is_quota_on, wind);
 
         local = quota_local_new ();
         if (local == NULL) {
@@ -890,18 +879,14 @@ int32_t
 quota_create (call_frame_t *frame, xlator_t *this, loc_t *loc, int32_t flags,
               mode_t mode, mode_t umask, fd_t *fd, dict_t *xdata)
 {
-        /* jump to STACK_WIND if quota is off */
         quota_priv_t       *priv        = NULL;
-
-        priv = this->private;
-
-        if (!priv->is_quota_on)
-                goto wind;
-        /* ---------------------------------- */
-
         int32_t            ret            = -1;
         quota_local_t     *local          = NULL;
         int32_t            op_errno       = 0;
+
+        priv = this->private;
+
+        WIND_IF_QUOTAOFF (priv->is_quota_on, wind);
 
         local = quota_local_new ();
         if (local == NULL) {
@@ -980,17 +965,13 @@ int32_t
 quota_unlink (call_frame_t *frame, xlator_t *this, loc_t *loc, int xflag,
               dict_t *xdata)
 {
-        /* jump to STACK_WIND if quota is off */
         quota_priv_t       *priv        = NULL;
+        int32_t        ret = 0;
+        quota_local_t *local = NULL;
 
         priv = this->private;
 
-        if (!priv->is_quota_on)
-                goto wind;
-        /* ---------------------------------- */
-
-        int32_t        ret = 0;
-        quota_local_t *local = NULL;
+        WIND_IF_QUOTAOFF (priv->is_quota_on, wind);
 
         local = quota_local_new ();
         if (local == NULL) {
@@ -1100,18 +1081,15 @@ int32_t
 quota_link (call_frame_t *frame, xlator_t *this, loc_t *oldloc, loc_t *newloc,
             dict_t *xdata)
 {
-        /* jump to STACK_WIND if quota is off */
         quota_priv_t       *priv        = NULL;
-
-        priv = this->private;
-
-        if (!priv->is_quota_on)
-                goto wind;
-        /* ---------------------------------- */
-
         int32_t            ret   = -1, op_errno = ENOMEM;
         quota_local_t     *local = NULL;
         quota_inode_ctx_t *ctx = NULL;
+
+        priv = this->private;
+
+        WIND_IF_QUOTAOFF (priv->is_quota_on, wind);
+
 
         local = quota_local_new ();
         if (local == NULL) {
@@ -1281,18 +1259,14 @@ int32_t
 quota_rename (call_frame_t *frame, xlator_t *this, loc_t *oldloc,
               loc_t *newloc, dict_t *xdata)
 {
-        /* jump to STACK_WIND if quota is off */
         quota_priv_t       *priv        = NULL;
-
-        priv = this->private;
-
-        if (!priv->is_quota_on)
-                goto wind;
-        /* ---------------------------------- */
-
         int32_t            ret            = -1, op_errno = ENOMEM;
         quota_local_t     *local          = NULL;
         quota_inode_ctx_t *ctx            = NULL;
+
+        priv = this->private;
+
+        WIND_IF_QUOTAOFF (priv->is_quota_on, wind);
 
         local = quota_local_new ();
         if (local == NULL) {
@@ -1410,18 +1384,15 @@ int
 quota_symlink (call_frame_t *frame, xlator_t *this, const char *linkpath,
                loc_t *loc, mode_t umask, dict_t *xdata)
 {
-        /* jump to STACK_WIND if quota is off */
         quota_priv_t       *priv        = NULL;
-
-        priv = this->private;
-
-        if (!priv->is_quota_on)
-                goto wind;
-        /* ---------------------------------- */
-
         int32_t          ret      = -1;
         int32_t          op_errno = ENOMEM;
         quota_local_t   *local    = NULL;
+
+        priv = this->private;
+
+        WIND_IF_QUOTAOFF (priv->is_quota_on, wind);
+
 
         local = quota_local_new ();
         if (local == NULL) {
@@ -1507,17 +1478,14 @@ int32_t
 quota_truncate (call_frame_t *frame, xlator_t *this, loc_t *loc, off_t offset,
                 dict_t *xdata)
 {
-        /* jump to STACK_WIND if quota is off */
         quota_priv_t       *priv        = NULL;
+        int32_t          ret   = -1;
+        quota_local_t   *local = NULL;
 
         priv = this->private;
 
-        if (!priv->is_quota_on)
-                goto wind;
-        /* ---------------------------------- */
+        WIND_IF_QUOTAOFF (priv->is_quota_on, wind);
 
-        int32_t          ret   = -1;
-        quota_local_t   *local = NULL;
 
         local = quota_local_new ();
         if (local == NULL) {
@@ -1594,16 +1562,12 @@ int32_t
 quota_ftruncate (call_frame_t *frame, xlator_t *this, fd_t *fd, off_t offset,
                  dict_t *xdata)
 {
-        /* jump to STACK_WIND if quota is off */
         quota_priv_t       *priv        = NULL;
+        quota_local_t   *local = NULL;
 
         priv = this->private;
 
-        if (!priv->is_quota_on)
-                goto wind;
-        /* ---------------------------------- */
-
-        quota_local_t   *local = NULL;
+        WIND_IF_QUOTAOFF (priv->is_quota_on, wind);
 
         local = quota_local_new ();
         if (local == NULL)
@@ -1754,17 +1718,14 @@ out:
 int32_t
 quota_stat (call_frame_t *frame, xlator_t *this, loc_t *loc, dict_t *xdata)
 {
-        /* jump to STACK_WIND if quota is off */
         quota_priv_t       *priv        = NULL;
+        quota_local_t *local = NULL;
+        int32_t        ret   = -1;
 
         priv = this->private;
 
-        if (!priv->is_quota_on)
-                goto wind;
-        /* ---------------------------------- */
+        WIND_IF_QUOTAOFF (priv->is_quota_on, wind);
 
-        quota_local_t *local = NULL;
-        int32_t        ret   = -1;
 
         local = quota_local_new ();
         if (local == NULL) {
@@ -1833,16 +1794,12 @@ out:
 int32_t
 quota_fstat (call_frame_t *frame, xlator_t *this, fd_t *fd, dict_t *xdata)
 {
-        /* jump to STACK_WIND if quota is off */
         quota_priv_t       *priv        = NULL;
+        quota_local_t *local = NULL;
 
         priv = this->private;
 
-        if (!priv->is_quota_on)
-                goto wind;
-        /* ---------------------------------- */
-
-        quota_local_t *local = NULL;
+        WIND_IF_QUOTAOFF (priv->is_quota_on, wind);
 
         local = quota_local_new ();
         if (local == NULL) {
@@ -1908,17 +1865,13 @@ int32_t
 quota_readlink (call_frame_t *frame, xlator_t *this, loc_t *loc, size_t size,
                 dict_t *xdata)
 {
-        /* jump to STACK_WIND if quota is off */
         quota_priv_t       *priv        = NULL;
+        quota_local_t *local = NULL;
+        int32_t        ret   = -1;
 
         priv = this->private;
 
-        if (!priv->is_quota_on)
-                goto wind;
-        /* ---------------------------------- */
-
-        quota_local_t *local = NULL;
-        int32_t        ret   = -1;
+        WIND_IF_QUOTAOFF (priv->is_quota_on, wind);
 
         local = quota_local_new ();
         if (local == NULL) {
@@ -1990,16 +1943,12 @@ int32_t
 quota_readv (call_frame_t *frame, xlator_t *this, fd_t *fd, size_t size,
              off_t offset, uint32_t flags, dict_t *xdata)
 {
-        /* jump to STACK_WIND if quota is off */
         quota_priv_t       *priv        = NULL;
+        quota_local_t *local = NULL;
 
         priv = this->private;
 
-        if (!priv->is_quota_on)
-                goto wind;
-        /* ---------------------------------- */
-
-        quota_local_t *local = NULL;
+        WIND_IF_QUOTAOFF (priv->is_quota_on, wind);
 
         local = quota_local_new ();
         if (local == NULL) {
@@ -2066,16 +2015,12 @@ int32_t
 quota_fsync (call_frame_t *frame, xlator_t *this, fd_t *fd, int32_t flags,
              dict_t *xdata)
 {
-        /* jump to STACK_WIND if quota is off */
         quota_priv_t       *priv        = NULL;
+        quota_local_t *local = NULL;
 
         priv = this->private;
 
-        if (!priv->is_quota_on)
-                goto wind;
-        /* ---------------------------------- */
-
-        quota_local_t *local = NULL;
+        WIND_IF_QUOTAOFF (priv->is_quota_on, wind);
 
         local = quota_local_new ();
         if (local == NULL) {
@@ -2144,17 +2089,13 @@ int32_t
 quota_setattr (call_frame_t *frame, xlator_t *this, loc_t *loc,
                struct iatt *stbuf, int32_t valid, dict_t *xdata)
 {
-        /* jump to STACK_WIND if quota is off */
         quota_priv_t       *priv        = NULL;
+        quota_local_t *local = NULL;
+        int32_t        ret   = -1;
 
         priv = this->private;
 
-        if (!priv->is_quota_on)
-                goto wind;
-        /* ---------------------------------- */
-
-        quota_local_t *local = NULL;
-        int32_t        ret   = -1;
+        WIND_IF_QUOTAOFF (priv->is_quota_on, wind);
 
         local = quota_local_new ();
         if (local == NULL) {
@@ -2225,16 +2166,13 @@ int32_t
 quota_fsetattr (call_frame_t *frame, xlator_t *this, fd_t *fd,
                 struct iatt *stbuf, int32_t valid, dict_t *xdata)
 {
-        /* jump to STACK_WIND if quota is off */
         quota_priv_t       *priv        = NULL;
+        quota_local_t *local = NULL;
 
         priv = this->private;
 
-        if (!priv->is_quota_on)
-                goto wind;
-        /* ---------------------------------- */
+        WIND_IF_QUOTAOFF (priv->is_quota_on, wind);
 
-        quota_local_t *local = NULL;
 
         local = quota_local_new ();
         if (local == NULL) {
@@ -2312,18 +2250,14 @@ int
 quota_mknod (call_frame_t *frame, xlator_t *this, loc_t *loc, mode_t mode,
              dev_t rdev, mode_t umask, dict_t *xdata)
 {
-        /* jump to STACK_WIND if quota is off */
         quota_priv_t       *priv        = NULL;
-
-        priv = this->private;
-
-        if (!priv->is_quota_on)
-                goto wind;
-        /* ---------------------------------- */
-
         int32_t            ret            = -1;
         quota_local_t     *local          = NULL;
         int32_t            op_errno       = 0;
+
+        priv = this->private;
+
+        WIND_IF_QUOTAOFF (priv->is_quota_on, wind);
 
         local = quota_local_new ();
         if (local == NULL) {
@@ -2372,21 +2306,17 @@ int
 quota_setxattr (call_frame_t *frame, xlator_t *this,
                 loc_t *loc, dict_t *dict, int flags, dict_t *xdata)
 {
-        /* jump to STACK_WIND if quota is off */
         quota_priv_t       *priv        = NULL;
-
-        priv = this->private;
-
-        if (!priv->is_quota_on)
-                goto wind;
-        /* ---------------------------------- */
-
         int                      op_errno       = EINVAL;
         int                      op_ret         = -1;
         int64_t                 *size           = 0;
         uint64_t                 value          = 0;
         quota_inode_ctx_t       *ctx            = NULL;
         int                      ret            = -1;
+
+        priv = this->private;
+
+        WIND_IF_QUOTAOFF (priv->is_quota_on, wind);
 
         VALIDATE_OR_GOTO (frame, err);
         VALIDATE_OR_GOTO (this, err);
@@ -2440,17 +2370,13 @@ int
 quota_fsetxattr (call_frame_t *frame, xlator_t *this, fd_t *fd,
                  dict_t *dict, int flags, dict_t *xdata)
 {
-        /* jump to STACK_WIND if quota is off */
         quota_priv_t       *priv        = NULL;
+        int32_t         op_ret   = -1;
+        int32_t         op_errno = EINVAL;
 
         priv = this->private;
 
-        if (!priv->is_quota_on)
-                goto wind;
-        /* ---------------------------------- */
-
-        int32_t         op_ret   = -1;
-        int32_t         op_errno = EINVAL;
+        WIND_IF_QUOTAOFF (priv->is_quota_on, wind);
 
         VALIDATE_OR_GOTO (frame, err);
         VALIDATE_OR_GOTO (this, err);
@@ -2482,16 +2408,12 @@ int
 quota_removexattr (call_frame_t *frame, xlator_t *this,
                    loc_t *loc, const char *name, dict_t *xdata)
 {
-        /* jump to STACK_WIND if quota is off */
         quota_priv_t       *priv        = NULL;
+        int32_t         op_errno = EINVAL;
 
         priv = this->private;
 
-        if (!priv->is_quota_on)
-                goto wind;
-        /* ---------------------------------- */
-
-        int32_t         op_errno = EINVAL;
+        WIND_IF_QUOTAOFF (priv->is_quota_on, wind);
 
         VALIDATE_OR_GOTO (this, err);
 
@@ -2525,17 +2447,13 @@ int
 quota_fremovexattr (call_frame_t *frame, xlator_t *this,
                     fd_t *fd, const char *name, dict_t *xdata)
 {
-        /* jump to STACK_WIND if quota is off */
         quota_priv_t       *priv        = NULL;
+        int32_t         op_ret   = -1;
+        int32_t         op_errno = EINVAL;
 
         priv = this->private;
 
-        if (!priv->is_quota_on)
-                goto wind;
-        /* ---------------------------------- */
-
-        int32_t         op_ret   = -1;
-        int32_t         op_errno = EINVAL;
+        WIND_IF_QUOTAOFF (priv->is_quota_on, wind);
 
         VALIDATE_OR_GOTO (frame, err);
         VALIDATE_OR_GOTO (this, err);
@@ -2602,7 +2520,7 @@ quota_statfs_cbk (call_frame_t *frame, void *cookie, xlator_t *this,
         list_for_each_entry (limit_node, &priv->limit_head, limit_list) {
 		/* Notice that this only works for volume-level quota. */
                 if (strcmp (limit_node->path, "/") == 0) {
-                        blocks = limit_node->value / buf->f_bsize;
+                        blocks = limit_node->hard_lim / buf->f_bsize;
                         if (usage > blocks) {
                                 break;
                         }
@@ -2637,16 +2555,12 @@ unwind:
 int32_t
 quota_statfs (call_frame_t *frame, xlator_t *this, loc_t *loc, dict_t *xdata)
 {
-        /* jump to STACK_WIND if quota is off */
         quota_priv_t       *priv        = NULL;
+	inode_t *root_inode = NULL;
 
         priv = this->private;
 
-        if (!priv->is_quota_on)
-                goto wind;
-        /* ---------------------------------- */
-
-	inode_t *root_inode = NULL;
+        WIND_IF_QUOTAOFF (priv->is_quota_on, wind);
 
 	if (priv->consider_statfs && loc->inode) {
 		root_inode = loc->inode->table->root;
@@ -2700,16 +2614,12 @@ int
 quota_readdirp (call_frame_t *frame, xlator_t *this, fd_t *fd, size_t size,
                 off_t offset, dict_t *dict)
 {
-        /* jump to STACK_WIND if quota is off */
         quota_priv_t       *priv        = NULL;
+        int ret = 0;
 
         priv = this->private;
 
-        if (!priv->is_quota_on)
-                goto wind;
-        /* ---------------------------------- */
-
-        int ret = 0;
+        WIND_IF_QUOTAOFF (priv->is_quota_on, wind);
 
         if (dict) {
                 ret = dict_set_uint64 (dict, QUOTA_SIZE_KEY, 0);
@@ -2923,14 +2833,15 @@ mem_acct_init (xlator_t *this)
 int32_t
 quota_forget (xlator_t *this, inode_t *inode)
 {
-        quota_priv_t    *priv   = this->private;
-        if (!priv->is_quota_on)
-                return 0;
-
+        quota_priv_t         *priv    = NULL;
         int32_t               ret     = 0;
         uint64_t              ctx_int = 0;
         quota_inode_ctx_t    *ctx     = NULL;
         quota_dentry_t       *dentry  = NULL, *tmp;
+
+        priv = this->private;
+        if (!priv->is_quota_on)
+                return 0;
 
         ret = inode_ctx_del (inode, this, &ctx_int);
 
@@ -3000,7 +2911,7 @@ quota_parse_limits (quota_priv_t *priv, xlator_t *this, dict_t *xl_options,
                         quota_lim->path = gf_strdup (path);
 
                         gf_log (this->name, GF_LOG_INFO, "%s:%"PRId64,
-                                quota_lim->path, quota_lim->value);
+                                quota_lim->path, quota_lim->hard_lim);
 
                         if (old_list != NULL) {
                                 list_for_each_entry (old, old_list,
@@ -3032,7 +2943,7 @@ quota_parse_limits (quota_priv_t *priv, xlator_t *this, dict_t *xl_options,
         {
                 list_for_each_entry (quota_lim, &priv->limit_head, limit_list) {
                         gf_log (this->name, GF_LOG_INFO, "%s:%"PRId64,
-                                quota_lim->path, quota_lim->value);
+                                quota_lim->path, quota_lim->hard_lim);
                 }
         }
         UNLOCK (&priv->lock);
@@ -3205,7 +3116,7 @@ reconfigure (xlator_t *this, dict_t *options)
                         }
 
                         if (!found) {
-                                limit->value = -1;
+                                limit->hard_lim = -1;
                                 __quota_reconfigure (this, top->itable, limit);
                         }
 
@@ -3276,7 +3187,8 @@ struct volume_options options[] = {
         {.key = {"server-quota"},
          .type = GF_OPTION_TYPE_BOOL,
          .default_value = "off",
-         .description = "Add something here"
+         .description = "Skip the quota if xlator if the feature is not "
+                        "turned on. This is not a user exposed option."
         },
         {.key = {"default-soft-limit"},
          .type = GF_OPTION_TYPE_PERCENT,

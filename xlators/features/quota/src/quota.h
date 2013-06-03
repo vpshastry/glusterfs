@@ -27,6 +27,10 @@
 #define READDIR_BUF             4096
 #define QUOTA_UPDATE_USAGE_KEY  "quota-update-usage"
 
+#define WIND_IF_QUOTAOFF(is_quota_on, label)     \
+        if (!is_quota_on)                       \
+                goto label;
+
 #define GET_THIS_VOL(list_ptr) ((list_ptr)->my_vol)
 
 #define DID_CROSS_SOFT_LIMIT(soft_lim, prev_size, cur_size)               \
@@ -147,8 +151,10 @@ typedef struct quota_local quota_local_t;
 struct qd_vols_conf {
         char                    *name;
         inode_table_t           *itable;
-        uint64_t                 log_timeout;
+        time_t                   log_timeout;
+        gf_boolean_t             threads_status;
         double                   default_soft_lim;
+        gf_lock_t                lock;
         struct limits_level {
                 struct list_head         limit_head;
                 uint64_t                 time_out;
@@ -173,36 +179,10 @@ typedef struct quota_priv quota_priv_t;
 struct limits {
         struct list_head  limit_list;
         char             *path;
-        int64_t           value;
         uuid_t            gfid;
         uint64_t          prev_size;
         struct timeval    prev_log_tv;
         int64_t           hard_lim;
-        double            soft_lim;
+        int64_t           soft_lim;
 };
 typedef struct limits     limits_t;
-
-uint64_t cn = 1;
-
-
-static inline uint64_t
-quota_time_elapsed (struct timeval *now, struct timeval *then)
-{
-        return (now->tv_sec - then->tv_sec);
-}
-
-
-int32_t
-quota_timeout (struct timeval *tv, int32_t timeout)
-{
-        struct timeval now       = {0,};
-        int32_t        timed_out = 0;
-
-        gettimeofday (&now, NULL);
-
-        if (quota_time_elapsed (&now, tv) >= timeout) {
-                timed_out = 1;
-        }
-
-        return timed_out;
-}
