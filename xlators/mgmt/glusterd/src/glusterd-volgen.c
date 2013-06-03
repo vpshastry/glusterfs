@@ -3333,9 +3333,15 @@ build_quotad_graph (volgen_graph_t *graph, dict_t *mod_dict)
                         goto out;
                 }
 
-                ret = volgen_graph_set_options_generic (&cgraph, set_dict,
-                                                        voliter,
-                                                        quotad_option_handler);
+                if (mod_dict) {
+                        dict_copy (mod_dict, set_dict);
+                        ret = volgen_graph_set_options_generic (&cgraph, set_dict,
+                                                                voliter,
+                                                          basic_option_handler);
+                } else {
+                        ret = volgen_graph_set_options_generic (&cgraph, voliter->dict,
+                                                                voliter, basic_option_handler);
+                }
                 if (ret)
                         goto out;
 
