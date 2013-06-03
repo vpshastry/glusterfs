@@ -3657,6 +3657,7 @@ glusterd_create_quotad_volfile ()
         return glusterd_create_global_volfile (build_quotad_graph,
                                                filepath, NULL);
 }
+
 int
 glusterd_check_nfs_volfile_identical (gf_boolean_t *identical)
 {

@@ -3905,7 +3905,7 @@ glusterd_reconfigure_qc ()
 
 int
 glusterd_reconfigure_quotad ()
-{;
+{
         return glusterd_reconfigure_nodesvc (glusterd_create_quotad_volfile);
 }
 
@@ -3988,7 +3988,6 @@ glusterd_nodesvcs_batch_op (glusterd_volinfo_t *volinfo, int (*nfs_op) (),
         int     ret = 0;
         xlator_t *this = THIS;
         glusterd_conf_t *conf = NULL;
-        uuid_t owner;
 
         GF_ASSERT (this);
         conf = this->private;
@@ -4004,18 +4003,9 @@ glusterd_nodesvcs_batch_op (glusterd_volinfo_t *volinfo, int (*nfs_op) (),
                         goto out;
         }
 
-        ret = qd_op ();
-        if (ret)
-                goto out;
-
 //        if (conf->op_version == GD_MIN_OP_VERSION)
 //                goto out;
-
-        if (volinfo && !glusterd_is_volume_quota_enabled (volinfo))
-            goto out;
-
-        glusterd_get_lock_owner (&owner);
-        if (!uuid_compare (owner, MY_UUID)) {
+        if (glusterd_do_i_own_the_lock ()) {
                 ret = qd_op ();
                 if (ret)
                         goto out;
@@ -4139,10 +4129,13 @@ glusterd_nodesvcs_handle_graph_change (glusterd_volinfo_t *volinfo)
                 shd_op = glusterd_shd_stop;
                 nfs_op = glusterd_nfs_server_stop;
                 qd_op  = glusterd_quotad_stop;
-        } else if (glusterd_all_replicate_volumes_stopped()) {
-                shd_op = glusterd_shd_stop;
-        } else if (glusterd_all_volumes_with_quota_stopped ()) {
-                qd_op = glusterd_quotad_stop;
+        } else {
+                if (glusterd_all_replicate_volumes_stopped()) {
+                        shd_op = glusterd_shd_stop;
+                }
+                if (glusterd_all_volumes_with_quota_stopped ()) {
+                        qd_op = glusterd_quotad_stop;
+                }
         }
         return glusterd_nodesvcs_batch_op (volinfo, nfs_op, shd_op, qd_op);
 }
@@ -7752,4 +7745,15 @@ int
 glusterd_is_volume_quota_enabled (glusterd_volinfo_t *volinfo)
 {
         return (glusterd_volinfo_get_boolean (volinfo, VKEY_FEATURES_QUOTA));
+}
+
+gf_boolean_t
+glusterd_do_i_own_the_lock ()
+{
+        uuid_t uuid;
+
+        glusterd_get_lock_owner (&uuid);
+        if (!uuid_compare (uuid, MY_UUID))
+                return _gf_true;
+        return _gf_false;
 }
