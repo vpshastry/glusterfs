@@ -912,7 +912,7 @@ struct volopt_map_entry glusterd_volopt_map[] = {
         /* Quota xlator options */
         { .key           = VKEY_FEATURES_LIMIT_USAGE,
           .voltype       = "features/quota",
-          .option        = "limit-set",
+          .option        = "*.limit-set",
           .type          = NO_DOC,
           .op_version    = 1,
           .client_option = _gf_true
@@ -925,17 +925,19 @@ struct volopt_map_entry glusterd_volopt_map[] = {
         },
         { .key           = "features.soft-timeout",
           .voltype       = "features/quotad",
-          .value         = "10",
+          .option        = "*.soft-timeout",
           .type          = NO_DOC,
           .op_version    = 2
         },
         { .key           = "features.hard-timeout",
           .voltype       = "features/quotad",
+          .option        = "*.hard-timeout",
           .type          = NO_DOC,
           .op_version    = 2
         },
         { .key           = "features.alert-time",
           .voltype       = "features/quotad",
+          .option        = "*.alert-time",
           .type          = NO_DOC,
           .op_version    = 2
         },
@@ -948,25 +950,6 @@ struct volopt_map_entry glusterd_volopt_map[] = {
           .validate_fn   = validate_quota,
           .client_option = _gf_true
         },
-        /* Quota client xlator options */
-        { .key           = VKEY_FEATURES_LIMIT_USAGE,
-          .voltype       = "features/quotad",
-          .option        = "*.limit-set",
-          .type          = NO_DOC,
-          .op_version    = 2,
-          .client_option = _gf_true
-        },
-        { .key           = "features.soft-timeout",
-          .voltype       = "features/quotad",
-          .op_version    = 2,
-          .type          = DOC,
-        },
-        { .key           = "features.hard-timeout",
-          .voltype       = "features/quotad",
-          .op_version    = 2,
-          .type          = DOC,
-        },
-
         /* Marker xlator options */
         { .key         = VKEY_MARKER_XTIME,
           .voltype     = "features/marker",
