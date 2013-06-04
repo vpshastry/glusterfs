@@ -1116,6 +1116,7 @@ glusterd_quota_set_timeout (glusterd_volinfo_t *volinfo, dict_t *dict,
         int ret = 0;
         char *value = NULL;
         xlator_t *this = NULL;
+        char *timeout = NULL;
 
         this = THIS;
         GF_ASSERT (this);
@@ -1133,7 +1134,8 @@ glusterd_quota_set_timeout (glusterd_volinfo_t *volinfo, dict_t *dict,
                 return -1;
         }
 
-        ret = dict_set_str (volinfo->dict, key, value);
+        timeout = gf_strdup (value);
+        ret = dict_set_dynstr (volinfo->dict, key, timeout);
         if(ret) {
                 gf_log (this->name, GF_LOG_ERROR, "Failed to set option %s",
                         key);
