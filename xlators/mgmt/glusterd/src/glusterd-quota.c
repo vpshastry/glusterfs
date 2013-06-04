@@ -782,8 +782,12 @@ glusterd_quota_soft_limit (glusterd_volinfo_t *volinfo, dict_t *dict,
                         goto out;
                 } else {
                         ret = gf_get_hard_limit (removed_path, &hl);
-                        gf_asprintf (&value, "%s,%s:%s:%s", quota_limits, path,
-                                     hl, limit);
+                        if (quota_limits)
+                                gf_asprintf (&value, "%s,%s:%s:%s",
+                                             quota_limits, path, hl, limit);
+                        else
+                                gf_asprintf (&value, "%s:%s:%s", path, hl,
+                                             limit);
                         GF_FREE (quota_limits);
                         GF_FREE (removed_path);
                         GF_FREE (hl);

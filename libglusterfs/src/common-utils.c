@@ -2599,7 +2599,7 @@ gf_get_hard_limit (char *limit, char **hard_limit)
         hlbegin = i + 1;
         i++;
 
-        while (limit [i] && (limit[i] != ':'|| limit[i] != '\0')) {
+        while ((limit[i] != '\0') && (limit[i] != ':')) {
                 i++;
         }
 
