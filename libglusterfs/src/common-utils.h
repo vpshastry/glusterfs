@@ -581,6 +581,6 @@ int gf_process_reserved_ports (gf_boolean_t ports[]);
 gf_boolean_t gf_ports_reserved (char *blocked_port, gf_boolean_t *ports);
 int gf_get_hostname_from_ip (char *client_ip, char **hostname);
 
-int gf_get_soft_limit (char *limit, char *soft_limit);
-int gf_get_hard_limit (char *limit, char *hard_limit);
+int gf_get_soft_limit (char *limit, char **soft_limit);
+int gf_get_hard_limit (char *limit, char **hard_limit);
 #endif /* _COMMON_UTILS_H */

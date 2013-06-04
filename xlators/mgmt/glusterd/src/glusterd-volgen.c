@@ -2808,6 +2808,15 @@ quotad_option_handler (volgen_graph_t *graph, struct volopt_map_entry *vme,
                 if (ret)
                         return -1;
         }
+        if (!strcmp (vme->option, "*.default-soft-limit")) {
+                ret = gf_asprintf (&opt_str, "%s.default-soft-limit", volinfo->volname);
+                        if (-1 != ret) {
+                                ret = xlator_set_option (xl, opt_str, vme->value);
+                                GF_FREE (opt_str);
+                        }
+                if (ret)
+                        return -1;
+        }
         return 0;
 }
 

@@ -2547,40 +2547,68 @@ gf_get_hostname_from_ip (char *client_ip, char **hostname)
 }
 
 int
-gf_get_soft_limit (char *limit, char *soft_limit)
+gf_get_soft_limit (char *limit, char **soft_limit)
 {
-        int   ret           = 0;
         int   colon_count   = 0;
         int   i             = 0;
         int   len           = 0;
+        char  *sl           = NULL;
 
         len = strlen (limit);
-        for (i = 0; (colon_count != 2); i++) {
+        for (i = 0; i < len; i++) {
                 if (limit[i] == ':')
                         colon_count++;
+                if (colon_count == 2)
+                        break;
         }
 
-        strncpy (soft_limit, &limit[i], len - i);
-        return ret;
+        if (colon_count != 2) {
+                gf_log ("common-utils", GF_LOG_INFO, "Soft limit absent");
+                return 0;
+        }
+ 
+        sl = GF_CALLOC (len - i, sizeof (char), gf_common_mt_char);
+        if (!sl)
+                return -1;
+        strncpy (sl, &limit[i+1], len - i - 1);
+        *soft_limit = sl;
+
+        return 1;
 }
 
 int
-gf_get_hard_limit (char *limit, char *hard_limit)
+gf_get_hard_limit (char *limit, char **hard_limit)
 {
-        int    ret               = 0;
         int    i                 = 0;
         int    hlbegin           = 0;
+        int    len               = 0;
+        char   *hl               = NULL;
 
-        for (i = 0; limit[i]; i++) {
+        len = strlen (limit);
+
+        for (i = 0; i < len; i++) {
                 if (limit[i] == ':')
                         break;
         }
+
+        if (i == len) {
+                gf_log ("common-utils", GF_LOG_INFO, "Hard limit not found");
+                return -1;
+        }
+
         hlbegin = i + 1;
         i++;
 
-        while (limit[i] != ':') {
+        while (limit [i] && (limit[i] != ':'|| limit[i] != '\0')) {
                 i++;
         }
-        strncpy (hard_limit, &limit[hlbegin], i - hlbegin);
-        return ret;
+
+        hl = GF_CALLOC (i - hlbegin + 1, sizeof (char), gf_common_mt_char);
+        if (!hl)
+                return -1;
+
+        strncpy (hl, &limit[hlbegin], i - hlbegin);
+        *hard_limit = hl;
+
+        return 0;
 }

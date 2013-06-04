@@ -2353,7 +2353,8 @@ out:
 
 int32_t
 gf_cli_print_limit_list (char *volname, char *limit_list,
-                            char *op_errstr, uint32_t op_version)
+                            char *op_errstr, uint32_t op_version,
+                            char *default_sl)
 {
         uint64_t  used_space            = 0;
         uint64_t  hard_limit            = 0;
@@ -2370,10 +2371,11 @@ gf_cli_print_limit_list (char *volname, char *limit_list,
         char     value [1024]    = {0, };
         char     mountdir []     = "/tmp/mntXXXXXX";
         char     abspath [PATH_MAX] = {0, };
-        char     hl[50]          = {0,};
-        char     sl[50]          = {0,};
+        char    *hl              = NULL;
+        char    *sl              = NULL;
         char     *colon_ptr      = NULL;
         runner_t runner          = {0,};
+        char    *sl_final        = NULL;
 
         GF_VALIDATE_OR_GOTO ("cli", volname, out);
         GF_VALIDATE_OR_GOTO ("cli", limit_list, out);
@@ -2465,6 +2467,7 @@ gf_cli_print_limit_list (char *volname, char *limit_list,
                  "-----------------------");
         while (i < len) {
                 j = 0;
+                sl = hl = NULL;
 
                 while (limit_list [i] != ',' && limit_list [i] != '\0') {
                         path [j++] = limit_list[i++];
@@ -2472,8 +2475,13 @@ gf_cli_print_limit_list (char *volname, char *limit_list,
                 path [j] = '\0';
                 //here path[] contains information in the format:
                 //<path>:<hard-limit>:<soft-limit>
-                ret = gf_get_hard_limit (path, hl);
-                ret = gf_get_soft_limit (path, sl);
+                ret = gf_get_hard_limit (path, &hl);
+                ret = gf_get_soft_limit (path, &sl);
+                if (ret == 1)
+                        //soft limit absent
+                        sl_final = sl;
+                else
+                        sl_final = default_sl;
                 colon_ptr = strchr (path, ':');
                 *colon_ptr = '\0';
 
@@ -2481,26 +2489,28 @@ gf_cli_print_limit_list (char *volname, char *limit_list,
 
                 ret = sys_lgetxattr (abspath, "trusted.limit.list", (void *) ret_str, 4096);
                 if (ret < 0) {
-                        cli_out ("%-20s %10s %10s", path, hl, sl);
+                        cli_out ("%-20s %10s %10s", path, hl, sl_final);
                 } else {
                         sscanf (ret_str, "%"PRId64",%"PRId64, &used_space,
                                 &limit_value);
-                        used_str = gf_uint64_2human_readable ( used_space);
+                        used_str = gf_uint64_2human_readable (used_space);
                         ret = gf_string2bytesize (hl, &hard_limit);
 
                         avail = hard_limit - used_space;
                         avail_str = gf_uint64_2human_readable (avail);
                         if (used_str == NULL) {
-                                cli_out ("%-20s %10s %10s %20"PRIu64 "%20"PRIu64, path, hl, sl,
-                                         used_space, avail);
+                                cli_out ("%-20s %10s %10s %20"PRIu64 "%20"PRIu64,
+                                         path, hl, sl_final, used_space, avail);
                         } else {
-                                cli_out ("%-20s %10s %10s %20s %20s", path, hl, sl,
+                                cli_out ("%-20s %10s %10s %20s %20s", path, hl, sl_final,
                                         used_str, avail_str);
                                 GF_FREE (used_str);
                         }
                 }
                 i++;
         }
+        GF_FREE (hl);
+        GF_FREE (sl);
         }
 unmount:
 
@@ -2534,6 +2544,7 @@ gf_cli_quota_cbk (struct rpc_req *req, struct iovec *iov,
         char               msg[1024]  = {0,};
         call_frame_t      *frame      = NULL;
         uint32_t           op_version = 1;
+        char              *default_sl = NULL;
 
         if (-1 == req->rpc_status) {
                 goto out;
@@ -2588,6 +2599,11 @@ gf_cli_quota_cbk (struct rpc_req *req, struct iovec *iov,
                 gf_log (frame->this->name, GF_LOG_TRACE, "failed to get "
                         "op-version");
 
+        ret = dict_get_str (dict, "default-soft-limit", &default_sl);
+        if (ret)
+                gf_log (frame->this->name, GF_LOG_TRACE, "failed to get "
+                        "op-version");
+
         ret = dict_get_int32 (dict, "type", &type);
         if (ret)
                 gf_log (frame->this->name, GF_LOG_TRACE,
@@ -2608,7 +2624,8 @@ gf_cli_quota_cbk (struct rpc_req *req, struct iovec *iov,
                 if (limit_list) {
                         gf_cli_print_limit_list (volname,
                                                     limit_list,
-                                                    rsp.op_errstr, op_version);
+                                                    rsp.op_errstr, op_version,
+                                                    default_sl);
                 } else {
                         gf_log ("cli", GF_LOG_INFO, "Received resp to quota "
                                 "command ");

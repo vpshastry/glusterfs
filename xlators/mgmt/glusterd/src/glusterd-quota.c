@@ -154,7 +154,7 @@ out:
  */
 int32_t
 _glusterd_quota_remove_limits (char **quota_limits, char *path,
-                               gf_boolean_t *found, char *removed_path)
+                               gf_boolean_t *found, char **removed_path)
 {
         int      ret      = 0;
         int      i        = 0;
@@ -165,6 +165,7 @@ _glusterd_quota_remove_limits (char **quota_limits, char *path,
         int      flag     = 0;
         char    *limits   = NULL;
         char    *qlimits  = NULL;
+        char    *rp       = NULL;
 
         if (found != NULL)
                 *found = _gf_false;
@@ -199,8 +200,15 @@ _glusterd_quota_remove_limits (char **quota_limits, char *path,
                 } else {
                         skiplen = size + 1;
                         size = len - i - size;
-                        if (removed_path)
-                                strncpy (removed_path, &qlimits[i], skiplen - 1);
+                        if (removed_path) {
+                                rp = GF_CALLOC (skiplen, sizeof (char), gf_gld_mt_char);
+                                if (!rp) {
+                                        ret = -1;
+                                        goto out;
+                                }
+                                strncpy (rp, &qlimits[i], skiplen - 1);
+                                *removed_path = rp;
+                        }
                         memcpy ((void *) &limits [i], (void *) &qlimits [i + skiplen], size);
                         break;
                 }
@@ -406,6 +414,8 @@ glusterd_quota_get_limit_usages (glusterd_conf_t *priv,
         char              *limit_str       = NULL;
         xlator_t          *this            = NULL;
         glusterd_conf_t   *conf            = NULL;
+        char              *default_limit   = NULL;
+        char              *val             = NULL;
 
         if (rsp_dict == NULL)
                 return 0;
@@ -451,6 +461,12 @@ glusterd_quota_get_limit_usages (glusterd_conf_t *priv,
         }
 
         ret = dict_set_uint32 (rsp_dict, "op-version", conf->op_version);
+
+        ret = glusterd_volinfo_get (volinfo, "features.default-soft-limit",
+                                    &default_limit);
+        val = gf_strdup (default_limit);
+
+        ret = dict_set_dynstr (rsp_dict, "default-soft-limit", val);
 out:
         return ret;
 }
@@ -569,13 +585,12 @@ glusterd_quota_limit_usage (glusterd_volinfo_t *volinfo, dict_t *dict, char **op
         char            *path               = NULL;
         char            *limit              = NULL;
         char            *value              = NULL;
-        char             sl[8]              = {0,};
+        char            *sl                 = NULL;
         char             msg[1024]          = {0,};
         char            *quota_limits       = NULL;
-        char            *default_sl         = NULL;
         xlator_t        *this               = NULL;
         glusterd_conf_t *priv               = NULL;
-        char             removed_path[1024] = {0,};
+        char            *removed_path       = NULL;
 
         GF_VALIDATE_OR_GOTO ("glusterd", dict, out);
         GF_VALIDATE_OR_GOTO ("glusterd", volinfo, out);
@@ -617,10 +632,11 @@ glusterd_quota_limit_usage (glusterd_volinfo_t *volinfo, dict_t *dict, char **op
 
         if (quota_limits) {
                 ret = _glusterd_quota_remove_limits (&quota_limits, path, NULL,
-                                                     removed_path);
+                                                     &removed_path);
                 if (ret == -1) {
                         gf_log (this->name, GF_LOG_ERROR, "Unable to allocate memory");
                         *op_errstr = gf_strdup ("failed to set limit");
+                        GF_FREE (removed_path);
                         goto out;
                 }
         }
@@ -635,10 +651,7 @@ glusterd_quota_limit_usage (glusterd_volinfo_t *volinfo, dict_t *dict, char **op
                                 goto out;
                         }
                 } else { */
-                ret = glusterd_volinfo_get (volinfo,
-                                            "features.default-soft-limit",
-                                            &default_sl);
-                ret = gf_asprintf (&value, "%s:%s:%s", path, limit, default_sl);
+                ret = gf_asprintf (&value, "%s:%s", path, limit);
                 if (ret == -1) {
                         gf_log (this->name, GF_LOG_ERROR, "Unable to allocate memory");
                         *op_errstr = gf_strdup ("failed to set limit");
@@ -657,17 +670,22 @@ glusterd_quota_limit_usage (glusterd_volinfo_t *volinfo, dict_t *dict, char **op
 
                         GF_FREE (quota_limits);
                 } else { */
-                        if (removed_path[0] == '\0') {
-                                ret = glusterd_volinfo_get (volinfo,
-                                                  "features.default-soft-limit",
-                                                  &default_sl);
-                                gf_asprintf (&value, "%s,%s:%s:%s",
-                                             quota_limits, path, limit,
-                                             default_sl);
+                        if (!removed_path) {
+                                gf_asprintf (&value, "%s,%s:%s", quota_limits,
+                                             path, limit);
                         } else {
-                                ret = gf_get_soft_limit (removed_path, sl);
-                                gf_asprintf (&value, "%s,%s:%s:%s",
-                                             quota_limits, path, limit, sl);
+                                ret = gf_get_soft_limit (removed_path, &sl);
+                                if (ret == 0) {
+                                        //ret = 0 implies that the path has no soft limit explicitly set.
+                                        gf_asprintf (&value, "%s,%s:%s",
+                                                     quota_limits, path, limit);
+                                } else {
+                                        gf_asprintf (&value, "%s,%s:%s:%s",
+                                                     quota_limits, path, limit,
+                                                     sl);
+                                        GF_FREE (sl);
+                                }
+                                GF_FREE (removed_path);
                         }
                         GF_FREE (quota_limits);
 //                }
@@ -697,9 +715,9 @@ glusterd_quota_soft_limit (glusterd_volinfo_t *volinfo, dict_t *dict,
         char   *path               = NULL;
         char   *limit              = NULL;
         char   *quota_limits       = NULL;
-        char    removed_path[1024] = {0,};
+        char   *removed_path       = NULL;
         char    msg[1024]          = {0,};
-        char    hl[256]            = {0,};
+        char   *hl                 = NULL;
         char   *value              = NULL;
         xlator_t *this             = NULL;
 
@@ -748,7 +766,7 @@ glusterd_quota_soft_limit (glusterd_volinfo_t *volinfo, dict_t *dict,
 
         if (quota_limits) {
                 ret = _glusterd_quota_remove_limits (&quota_limits, path, NULL,
-                                                     removed_path);
+                                                     &removed_path);
                  if (ret == -1) {
                         gf_log (this->name, GF_LOG_ERROR, "Unable to allocate memory");
                         *op_errstr = gf_strdup ("failed to set soft limit");
@@ -756,17 +774,19 @@ glusterd_quota_soft_limit (glusterd_volinfo_t *volinfo, dict_t *dict,
                          goto out;
                  }
 
-                if (removed_path[0] == '\0') {
+                if (!removed_path) {
                         gf_asprintf (op_errstr, "Soft-limit cannot be set on "
                                      "path %s without setting hard-limit on it "
                                      "first.", path);
                         GF_FREE (quota_limits);
                         goto out;
                 } else {
-                        ret = gf_get_hard_limit (removed_path, hl);
+                        ret = gf_get_hard_limit (removed_path, &hl);
                         gf_asprintf (&value, "%s,%s:%s:%s", quota_limits, path,
                                      hl, limit);
                         GF_FREE (quota_limits);
+                        GF_FREE (removed_path);
+                        GF_FREE (hl);
                 }
          }
 
@@ -854,6 +874,43 @@ glusterd_quota_remove_limits (glusterd_volinfo_t *volinfo, dict_t *dict, char **
 
 out:
         return ret;
+}
+
+int
+glusterd_quota_set_timeout (glusterd_volinfo_t *volinfo, dict_t *dict,
+                            char *key, char **op_errstr)
+{
+        int ret = 0;
+        char *value = NULL;
+        xlator_t *this = NULL;
+        char *timeout = NULL;
+
+        this = THIS;
+        GF_ASSERT (this);
+
+        ret = glusterd_check_if_quota_trans_enabled (volinfo);
+        if (ret == -1) {
+                gf_asprintf (op_errstr, "Cannot set %s. Quota on volume %s is "
+                                        "disabled", key, volinfo->volname);
+                return -1;
+        }
+
+        ret = dict_get_str (dict, "value", &value);
+        if(ret) {
+                gf_log (this->name, GF_LOG_ERROR, "Option value absent.");
+                return -1;
+        }
+
+        timeout = gf_strdup (value);
+        ret = dict_set_dynstr (volinfo->dict, key, timeout);
+        if(ret) {
+                gf_log (this->name, GF_LOG_ERROR, "Failed to set option %s",
+                        key);
+                return -1;
+        }
+        gf_asprintf (op_errstr, "%s on volume %s set", key, volinfo->volname);
+
+        return 0;
 }
 
 int
@@ -1109,39 +1166,3 @@ glusterd_quota_commit_op_v2 (glusterd_volinfo_t *volinfo, dict_t *dict,
 {
 }*/
 
-int
-glusterd_quota_set_timeout (glusterd_volinfo_t *volinfo, dict_t *dict,
-                            char *key, char **op_errstr)
-{
-        int ret = 0;
-        char *value = NULL;
-        xlator_t *this = NULL;
-        char *timeout = NULL;
-
-        this = THIS;
-        GF_ASSERT (this);
-
-        ret = glusterd_check_if_quota_trans_enabled (volinfo);
-        if (ret == -1) {
-                gf_asprintf (op_errstr, "Cannot set %s. Quota on volume %s is "
-                                        "disabled", key, volinfo->volname);
-                return -1;
-        }
-
-        ret = dict_get_str (dict, "value", &value);
-        if(ret) {
-                gf_log (this->name, GF_LOG_ERROR, "Option value absent.");
-                return -1;
-        }
-
-        timeout = gf_strdup (value);
-        ret = dict_set_dynstr (volinfo->dict, key, timeout);
-        if(ret) {
-                gf_log (this->name, GF_LOG_ERROR, "Failed to set option %s",
-                        key);
-                return -1;
-        }
-        gf_asprintf (op_errstr, "%s on volume %s set", key, volinfo->volname);
-
-        return 0;
-}
