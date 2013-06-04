@@ -946,12 +946,17 @@ struct volume_options options[] = {
          .default_value = "2",
          .description = ""
         },
-        {.key = {"*.alert-timeout"},
+        {.key = {"*.alert-time"},
          .type = GF_OPTION_TYPE_SIZET,
          .min = 0,
          .max = LONG_MAX,
          /* default weekly (7 * 24 * 60 *60) */
          .default_value = "604800",
+         .description = ""
+        },
+        {.key = {"*.default-soft-limit"},
+         .type = GF_OPTION_TYPE_PERCENT,
+         .default_value = "80%",
          .description = ""
         },
         {.key = {NULL}}
