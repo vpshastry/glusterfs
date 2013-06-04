@@ -2770,7 +2770,7 @@ quotad_option_handler (volgen_graph_t *graph, struct volopt_map_entry *vme,
         volinfo = param;
         xl = first_of (graph);
 
-        if (!strcmp (vme->option, "soft-timeout")) {
+        if (!strcmp (vme->option, "*.soft-timeout")) {
                 ret = gf_asprintf (&opt_str, "%s.soft-timeout", volinfo->volname);
                 if (-1 != ret) {
                         ret = xlator_set_option (xl, opt_str, vme->value);
@@ -2780,7 +2780,7 @@ quotad_option_handler (volgen_graph_t *graph, struct volopt_map_entry *vme,
                         return -1;
         }
 
-        if (!strcmp (vme->option, "hard-timeout")) {
+        if (!strcmp (vme->option, "*.hard-timeout")) {
                 ret = gf_asprintf (&opt_str, "%s.hard-timeout", volinfo->volname);
                         if (-1 != ret) {
                                 ret = xlator_set_option (xl, opt_str, vme->value);
@@ -2790,7 +2790,7 @@ quotad_option_handler (volgen_graph_t *graph, struct volopt_map_entry *vme,
                                 return -1;
         }
 
-        if (!strcmp (vme->option, "limit-set")) {
+        if (!strcmp (vme->option, "*.limit-set")) {
                 ret = gf_asprintf (&opt_str, "%s.limit-set", volinfo->volname);
                         if (-1 != ret) {
                                 ret = xlator_set_option (xl, opt_str, vme->value);
@@ -2799,7 +2799,7 @@ quotad_option_handler (volgen_graph_t *graph, struct volopt_map_entry *vme,
                 if (ret)
                         return -1;
         }
-        if (!strcmp (vme->option, "alert-timeout")) {
+        if (!strcmp (vme->option, "*.alert-timeout")) {
                 ret = gf_asprintf (&opt_str, "%s.alert-timeout", volinfo->volname);
                         if (-1 != ret) {
                                 ret = xlator_set_option (xl, opt_str, vme->value);
