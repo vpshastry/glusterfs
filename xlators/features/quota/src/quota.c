@@ -13,8 +13,6 @@
 #include "common-utils.h"
 #include "defaults.h"
 
-// occassionally log
-static int8_t  occ_log = 0;
 
 int32_t
 quota_check_limit (call_frame_t *frame, inode_t *inode, xlator_t *this,

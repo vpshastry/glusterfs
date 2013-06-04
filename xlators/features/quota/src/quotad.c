@@ -479,7 +479,10 @@ estale_retry:
                         if (ESTALE == errno && reval < 1) {
                                 reval ++;
                                 loc_wipe (&entry_loc);
-                                dict_reset (dict);
+                                ret = dict_reset (dict);
+                                if (ret)
+                                        gf_log (this->name, GF_LOG_WARNING,
+                                                "Dict reset failed");
                                 goto estale_retry;
                         }
                         if (ENOENT == errno) {

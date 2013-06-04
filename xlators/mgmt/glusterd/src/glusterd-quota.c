@@ -105,7 +105,7 @@ __glusterd_handle_quota (rpcsvc_request_t *req)
                          "cluster is operating at version 1. Upgrade the "
                          "servers in order to be able to use this option");
                goto out;
-       } */ 
+       } */
 
         ret = glusterd_op_begin_synctask (req, GD_OP_QUOTA, dict);
 
