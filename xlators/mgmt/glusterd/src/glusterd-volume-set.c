@@ -930,19 +930,19 @@ struct volopt_map_entry glusterd_volopt_map[] = {
         },
         { .key           = "features.soft-timeout",
           .voltype       = "features/quotad",
-          .option        = "*.soft-timeout",
+          .option        = "!*.soft-timeout",
           .type          = NO_DOC,
           .op_version    = 2
         },
         { .key           = "features.hard-timeout",
           .voltype       = "features/quotad",
-          .option        = "*.hard-timeoout",
+          .option        = "!*.hard-timeout",
           .type          = NO_DOC,
           .op_version    = 2
         },
         { .key           = "features.alert-time",
           .voltype       = "features/quotad",
-          .option        = "*.alert-time",
+          .option        = "!*.alert-time",
           .type          = NO_DOC,
           .op_version    = 2
         },

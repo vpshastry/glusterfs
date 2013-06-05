@@ -2179,7 +2179,7 @@ static int
 volgen_graph_build_clusters (volgen_graph_t *graph,
                              glusterd_volinfo_t *volinfo, char *xl_type,
                              char *xl_namefmt, size_t child_count,
-                             size_t sub_count)
+                             size_t sub_count, gf_boolean_t is_quotad)
 {
         int             i = 0;
         int             j = 0;
@@ -2187,6 +2187,7 @@ volgen_graph_build_clusters (volgen_graph_t *graph,
         xlator_t        *xl  = NULL;
         xlator_t        *trav = NULL;
         char            *volname = NULL;
+        char            *name_fmt = NULL;
         int             ret     = -1;
 
         if (child_count == 0)
@@ -2196,8 +2197,12 @@ volgen_graph_build_clusters (volgen_graph_t *graph,
         for (trav = txl; --child_count; trav = trav->next);
         for (;; trav = trav->prev) {
                 if ((i % sub_count) == 0) {
+                        if (is_quotad)
+                                name_fmt = "%s";
+                        else
+                                name_fmt = xl_namefmt;
                         xl = volgen_graph_add_nolink (graph, xl_type,
-                                                      xl_namefmt, volname, j);
+                                                      name_fmt, volname, j);
                         if (!xl) {
                                 ret = -1;
                                 goto out;
@@ -2316,7 +2321,8 @@ out:
 
 static int
 volgen_graph_build_dht_cluster (volgen_graph_t *graph,
-                                glusterd_volinfo_t *volinfo, size_t child_count)
+                                glusterd_volinfo_t *volinfo, size_t child_count,
+                                gf_boolean_t is_quotad)
 {
         int32_t                 clusters                 = 0;
         int                     ret                      = -1;
@@ -2335,7 +2341,8 @@ volgen_graph_build_dht_cluster (volgen_graph_t *graph,
                                                         ? "cluster/nufa"
                                                         : "cluster/distribute",
                                                 "%s-dht",
-                                                child_count, child_count);
+                                                child_count, child_count,
+                                                is_quotad);
         if (clusters < 0)
                 goto out;
         dht = first_of (graph);
@@ -2357,7 +2364,8 @@ out:
 
 static int
 volume_volgen_graph_build_clusters (volgen_graph_t *graph,
-                                    glusterd_volinfo_t *volinfo)
+                                    glusterd_volinfo_t *volinfo,
+                                    gf_boolean_t is_quotad)
 {
         char                    *replicate_args[]   = {"cluster/replicate",
                                                        "%s-replicate-%d"};
@@ -2381,7 +2389,8 @@ volume_volgen_graph_build_clusters (volgen_graph_t *graph,
                                                         replicate_args[0],
                                                         replicate_args[1],
                                                         volinfo->brick_count,
-                                                        volinfo->replica_count);
+                                                        volinfo->replica_count,
+                                                        _gf_false);
                 if (clusters < 0)
                         goto out;
                 break;
@@ -2390,7 +2399,8 @@ volume_volgen_graph_build_clusters (volgen_graph_t *graph,
                                                         stripe_args[0],
                                                         stripe_args[1],
                                                         volinfo->brick_count,
-                                                        volinfo->stripe_count);
+                                                        volinfo->stripe_count,
+                                                        _gf_false);
                 if (clusters < 0)
                         goto out;
                 break;
@@ -2402,7 +2412,8 @@ volume_volgen_graph_build_clusters (volgen_graph_t *graph,
                                                         replicate_args[0],
                                                         replicate_args[1],
                                                         volinfo->brick_count,
-                                                        volinfo->replica_count);
+                                                        volinfo->replica_count,
+                                                        _gf_false);
                 if (clusters < 0)
                         goto out;
 
@@ -2412,7 +2423,8 @@ volume_volgen_graph_build_clusters (volgen_graph_t *graph,
                                                         stripe_args[0],
                                                         stripe_args[1],
                                                         rclusters,
-                                                        volinfo->stripe_count);
+                                                        volinfo->stripe_count,
+                                                        _gf_false);
                 if (clusters < 0)
                         goto out;
                 break;
@@ -2430,7 +2442,7 @@ build_distribute:
         }
 
         ret = volgen_graph_build_dht_cluster (graph, volinfo,
-                                              dist_count);
+                                              dist_count, is_quotad);
         if (ret)
                 goto out;
 
@@ -2455,7 +2467,7 @@ client_graph_builder (volgen_graph_t *graph, glusterd_volinfo_t *volinfo,
         if (ret)
                 goto out;
 
-        ret = volume_volgen_graph_build_clusters (graph, volinfo);
+        ret = volume_volgen_graph_build_clusters (graph, volinfo, _gf_false);
         if (ret)
                 goto out;
 
@@ -2754,7 +2766,7 @@ quotad_option_handler (volgen_graph_t *graph, struct volopt_map_entry *vme,
         volinfo = param;
         xl = first_of (graph);
 
-        if (!strcmp (vme->option, "*.soft-timeout")) {
+        if (!strcmp (vme->option, "!*.soft-timeout")) {
                 ret = gf_asprintf (&opt_str, "%s.soft-timeout", volinfo->volname);
                 if (-1 != ret) {
                         ret = xlator_set_option (xl, opt_str, vme->value);
@@ -2764,7 +2776,7 @@ quotad_option_handler (volgen_graph_t *graph, struct volopt_map_entry *vme,
                         return -1;
         }
 
-        if (!strcmp (vme->option, "*.hard-timeout")) {
+        if (!strcmp (vme->option, "!*.hard-timeout")) {
                 ret = gf_asprintf (&opt_str, "%s.hard-timeout", volinfo->volname);
                         if (-1 != ret) {
                                 ret = xlator_set_option (xl, opt_str, vme->value);
@@ -2889,7 +2901,8 @@ build_shd_graph (volgen_graph_t *graph, dict_t *mod_dict)
                                                         "cluster/replicate",
                                                         "%s-replicate-%d",
                                                         voliter->brick_count,
-                                                        replica_count);
+                                                        replica_count,
+                                                        _gf_false);
                 if (rclusters < 0) {
                         ret = -1;
                         goto out;
@@ -3225,7 +3238,8 @@ build_quotad_graph (volgen_graph_t *graph, dict_t *mod_dict)
                 if (ret)
                         goto out;
 
-                ret = volume_volgen_graph_build_clusters (&cgraph, voliter);
+                ret = volume_volgen_graph_build_clusters (&cgraph, voliter,
+                                                          _gf_true);
                 if (ret) {
                         ret = -1;
                         goto out;
@@ -3255,6 +3269,11 @@ build_quotad_graph (volgen_graph_t *graph, dict_t *mod_dict)
         }
 
         list_for_each_entry (voliter, &priv->volumes, vol_list) {
+                if (voliter->status != GLUSTERD_STATUS_STARTED)
+                        continue;
+
+                if (1 != glusterd_is_volume_quota_enabled (voliter))
+                        continue;
                 if (mod_dict) {
                         ret = volgen_graph_set_options_generic (graph, mod_dict,
                                                                 voliter,
