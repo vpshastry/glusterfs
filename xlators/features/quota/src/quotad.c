@@ -65,7 +65,7 @@ mem_acct_init (xlator_t *this)
  *
  * Format for limit string
  * <limit-string> = <limit-on-single-dir>[,<limit-on-single-dir>]*
- * <limit-on-single-dir> = <absolute-path-from-the-volume-root>:<soft-limit>:<hard-limit>
+ * <limit-on-single-dir> = <abs-path-from-volume-root>:<hard-limit>[:<soft-limit-%>]
  */
 int
 qd_parse_limits (quota_priv_t *priv, xlator_t *this, char *limit_str,
@@ -76,20 +76,23 @@ qd_parse_limits (quota_priv_t *priv, xlator_t *this, char *limit_str,
         char         *path      = NULL, *saveptr = NULL;
         uint64_t      value     = 0;
         limits_t     *quota_lim = NULL, *old = NULL;
-        char         *last_colon= NULL;
         char         *str       = NULL;
+        double        soft_l    = 0;
+        char         *limit_on_dir      = NULL;
+        char         *saveptr_dir       = NULL;
 
         str = gf_strdup (limit_str);
 
         if (str) {
-                path = strtok_r (str, ",", &saveptr);
+                limit_on_dir = strtok_r (str, ",", &saveptr);
 
-                while (path) {
+                while (limit_on_dir) {
                         QUOTA_ALLOC_OR_GOTO (quota_lim, limits_t, err);
+                        saveptr_dir = NULL;
 
-                        last_colon = strrchr (path, ':');
-                        *last_colon = '\0';
-                        str_val = last_colon + 1;
+                        path = strtok_r (limit_on_dir, ":", &saveptr_dir);
+
+                        str_val = strtok_r (NULL, ":", &saveptr_dir);
 
                         ret = gf_string2bytesize (str_val, &value);
                         if (0 != ret)
@@ -97,23 +100,21 @@ qd_parse_limits (quota_priv_t *priv, xlator_t *this, char *limit_str,
 
                         quota_lim->hard_lim = value;
 
-                        last_colon = strrchr (path, ':');
-                        *last_colon = '\0';
-                        str_val = last_colon + 1;
+                        str_val = strtok_r (NULL, ",", &saveptr_dir);
 
-                        ret = gf_string2bytesize (str_val, &value);
+                        ret = gf_string2percent (str_val, &soft_l);
                         if (0 != ret)
-                                goto err;
+                                soft_l = this_vol->default_soft_lim;
 
-                        quota_lim->soft_lim = value;
+                        quota_lim->soft_lim = soft_l;
 
                         quota_lim->path = gf_strdup (path);
 
                         quota_lim->prev_size = quota_lim->hard_lim;
 
-                        gf_log (this->name, GF_LOG_INFO, "%s:%"PRId64":%"PRId64,
+                        gf_log (this->name, GF_LOG_INFO, "%s:%"PRId64":%"PRId32,
                                 quota_lim->path, quota_lim->hard_lim,
-                                quota_lim->soft_lim);
+                                (int)quota_lim->soft_lim);
 
                         if (NULL != old_list) {
                                 list_for_each_entry (old, old_list,
@@ -134,7 +135,7 @@ qd_parse_limits (quota_priv_t *priv, xlator_t *this, char *limit_str,
                         }
                         UNLOCK (&priv->lock);
 
-                        path = strtok_r (NULL, ",", &saveptr);
+                        limit_on_dir = strtok_r (NULL, ",", &saveptr);
                 }
         } else {
                 gf_log (this->name, GF_LOG_INFO,
@@ -316,6 +317,9 @@ qd_resolve_root (xlator_t *this, xlator_t *subvol, loc_t *root_loc,
                 gf_log (this->name, GF_LOG_WARNING, "Couldn't create dict");
                 goto out;
         }
+        ret = dict_set_uint64 (dict_req, QUOTA_SIZE_KEY, 0);
+        if (ret)
+                gf_log (this->name, GF_LOG_ERROR, "Couldn't set dict");
 
         ret = syncop_lookup (subvol, root_loc, dict_req, iatt, dict_rsp, NULL);
         if (-1 == ret) {
@@ -335,11 +339,12 @@ qd_resolve_path (xlator_t *this, xlator_t *subvol, qd_vols_conf_t *this_vol,
         char                    *next_component = NULL;
         char                    *saveptr        = NULL;
         char                    *path           = NULL;
-        int                      ret            = 0;
+        int                      ret            = -1;
         dict_t                  *dict_req       = NULL;
         struct iatt              piatt          = {0,};
         inode_t                 *parent         = NULL;
         inode_t                 *inode          = root_loc->inode;
+        int                      ret_val        = -1;
 
         ret = qd_resolve_root (this, subvol, root_loc, &piatt, dict_rsp);
         if (ret) {
@@ -394,7 +399,7 @@ qd_resolve_path (xlator_t *this, xlator_t *subvol, qd_vols_conf_t *this_vol,
 			*/
 			inode_unref (inode);
 			inode = NULL;
-			ret = -1;
+			ret_val = -1;
 			errno = ENOTDIR;
 			break;
 		}
@@ -412,14 +417,14 @@ qd_resolve_path (xlator_t *this, xlator_t *subvol, qd_vols_conf_t *this_vol,
 	entry_loc->inode = inode;
 	if (inode) {
 		uuid_copy (entry_loc->gfid, inode->gfid);
-		ret = 0;
+		ret_val = 0;
 	}
 
 	qd_loc_touchup (entry_loc);
 out:
 	GF_FREE (path);
 
-	return ret;
+	return ret_val;
 }
 
 
@@ -438,12 +443,14 @@ qd_log_usage (xlator_t *this, qd_vols_conf_t *this_vol, limits_t *entry,
         if (DID_CROSS_SOFT_LIMIT (entry->soft_lim, entry->prev_size, cur_size)) {
                 entry->prev_log_tv = cur_time;
                 gf_log (this->name, GF_LOG_WARNING, "Usage crossed soft limit:"
-                        " %ld for %s", entry->soft_lim, entry->path);
+                        " %ld for %s",
+                        (long) (entry->hard_lim * (entry->soft_lim / 100)),
+                        entry->path);
         } else if (cur_size > entry->soft_lim &&
                    quota_timeout (&entry->prev_log_tv, this_vol->log_timeout)) {
                 entry->prev_log_tv = cur_time;
                 gf_log (this->name, GF_LOG_WARNING, "Usage %ld %s "
-                        " limit for %s", entry->soft_lim,
+                        " limit for %s", cur_size,
                         (cur_size > entry->hard_lim)? "has reached hard": "is above soft",
                         entry->path);
         }
@@ -464,6 +471,7 @@ qd_getsetxattr (xlator_t *this, struct limits_level *list, loc_t *root_loc,
         int64_t         *size           = NULL;
         gf_boolean_t     resend_size    = _gf_true;
         int              reval          = 0;
+        double           soft_value     = 0;
 
         priv = this->private;
 
@@ -550,28 +558,31 @@ estale_retry:
                 }
 
 
+                soft_value = entry->hard_lim * entry->soft_lim / 100;
                 /* Move the limit-node to the corresponding list,
                  * based on the usage */
                 LOCK (&priv->lock);
                 {
                         /* usage > soft_limit? */
-                        if (prev_size < entry->soft_lim &&
-                                        cur_size >= entry->soft_lim)
+                        if (prev_size < soft_value &&
+                                        cur_size >= soft_value)
                                 list_move (&entry->limit_list,
                                            &(GET_THIS_VOL(list)->above_soft.limit_head));
                         /* usage < soft_limit? */
-                        else if (prev_size >= entry->soft_lim &&
-                                        cur_size < entry->soft_lim)
+                        else if (prev_size >= soft_value &&
+                                        cur_size < soft_value)
                                 list_move (&entry->limit_list,
                                            &(GET_THIS_VOL(list)->below_soft.limit_head));
                 }
                 UNLOCK (&priv->lock);
 
 reset_dict:
-                ret = dict_reset (dict);
-                if (ret)
-                        gf_log (this->name, GF_LOG_WARNING, "dictionary reset "
-                                "failed");
+                if (dict) {
+                        ret = dict_reset (dict);
+                        if (ret)
+                                gf_log (this->name, GF_LOG_WARNING,
+                                        "dict reset failed");
+                }
         }
         return ret;
 }
@@ -804,6 +815,15 @@ qd_init (xlator_t *this)
                 this_vol->below_soft.my_vol =
                 this_vol->above_soft.my_vol = this_vol;
 
+                gf_asprintf (&option_str, "%s.default-soft-limit", this_vol->name);
+                GF_OPTION_INIT (option_str, this_vol->default_soft_lim,
+                                percent, err);
+                GF_FREE (option_str);
+
+                gf_asprintf (&option_str, "%s.alert-time", this_vol->name);
+                GF_OPTION_INIT (option_str, this_vol->log_timeout, uint64, err);
+                GF_FREE (option_str);
+
                 ret = gf_asprintf (&option_str, "%s.limit-set", this_vol->name);
                 if (ret < 0) {
                         gf_log (this->name, GF_LOG_WARNING,
@@ -864,6 +884,10 @@ qd_notify (xlator_t *this, int event, void *data, ...)
         for (i=0, subvol = this->children; subvol; i++, subvol = subvol->next) {
                 if (0 == strcmp (priv->qd_vols_conf[i]->name, subvol_rec->name))
                         break;
+        }
+        if (!subvol) {
+                default_notify (this, event, data);
+                goto out;
         }
 
         switch (event) {
@@ -958,6 +982,14 @@ struct volume_options options[] = {
          /* default weekly (7 * 24 * 60 *60) */
          .default_value = "604800",
          .description = ""
+        },
+        {.key = {"*.default-soft-limit"},
+         .type = GF_OPTION_TYPE_PERCENT,
+         .min = 0,
+         .max = 100,
+         .default_value = "80%",
+         .description = "Takes this if individual paths are not configured "
+                        "with soft limits."
         },
         {.key = {NULL}}
 };

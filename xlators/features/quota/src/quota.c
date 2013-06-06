@@ -2966,19 +2966,22 @@ quota_parse_limits (quota_priv_t *priv, xlator_t *this, dict_t *xl_options,
         char         *path      = NULL, *saveptr = NULL;
         uint64_t      value     = 0;
         limits_t     *quota_lim = NULL, *old = NULL;
-        char         *last_colon= NULL;
+        double        soft_l    = 0;
+        char         *limit_dir = NULL;
+        char         *saveptr_dir       = NULL;
 
         ret = dict_get_str (xl_options, "limit-set", &str);
 
         if (str) {
-                path = strtok_r (str, ",", &saveptr);
+                limit_dir = strtok_r (str, ",", &saveptr);
 
-                while (path) {
+                while (limit_dir) {
                         QUOTA_ALLOC_OR_GOTO (quota_lim, limits_t, err);
+                        saveptr_dir = NULL;
 
-                        last_colon = strrchr (path, ':');
-                        *last_colon = '\0';
-                        str_val = last_colon + 1;
+                        path = strtok_r (limit_dir, ":", &saveptr_dir);
+
+                        str_val = strtok_r (NULL, ":", &saveptr_dir);
 
                         ret = gf_string2bytesize (str_val, &value);
                         if (ret != 0)
@@ -2986,17 +2989,15 @@ quota_parse_limits (quota_priv_t *priv, xlator_t *this, dict_t *xl_options,
 
                         quota_lim->hard_lim = value;
 
-                        last_colon = strrchr (path, ':');
-                        *last_colon = '\0';
-                        str_val = last_colon + 1;
+                        str_val = strtok_r (NULL, ",", &saveptr_dir);
 
-                        ret = gf_string2bytesize (str_val, &value);
+                        ret = gf_string2percent (str_val, &soft_l);
                         if (ret != 0)
-                                goto err;
+                                soft_l = priv->default_soft_lim;
 
-                        quota_lim->soft_lim = value;
+                        quota_lim->soft_lim = soft_l;
 
-                        quota_lim->path = path;
+                        quota_lim->path = gf_strdup (path);
 
                         gf_log (this->name, GF_LOG_INFO, "%s:%"PRId64,
                                 quota_lim->path, quota_lim->value);
@@ -3020,7 +3021,7 @@ quota_parse_limits (quota_priv_t *priv, xlator_t *this, dict_t *xl_options,
                         }
                         UNLOCK (&priv->lock);
 
-                        path = strtok_r (NULL, ",", &saveptr);
+                        limit_dir = strtok_r (NULL, ",", &saveptr);
                 }
         } else {
                 gf_log (this->name, GF_LOG_INFO,
@@ -3076,7 +3077,9 @@ init (xlator_t *this)
         }
 
         GF_OPTION_INIT ("deem-statfs", priv->consider_statfs, bool, err);
-        GF_OPTION_INIT ("quota", priv->is_quota_on, bool, err);
+        GF_OPTION_INIT ("server-quota", priv->is_quota_on, bool, err);
+        GF_OPTION_INIT ("default-soft-limit", priv->default_soft_lim, percent,
+                        err);
 
         this->local_pool = mem_pool_new (quota_local_t, 64);
         if (!this->local_pool) {
@@ -3159,6 +3162,13 @@ reconfigure (xlator_t *this, dict_t *options)
 
         priv = this->private;
 
+        GF_OPTION_RECONF ("deem-statfs", priv->consider_statfs, options, bool,
+                          out);
+        GF_OPTION_RECONF ("server-quota", priv->is_quota_on, options, bool,
+                          out);
+        GF_OPTION_RECONF ("default-soft-limit", priv->default_soft_lim,
+                          options, percent, out);
+
         INIT_LIST_HEAD (&head);
 
         LOCK (&priv->lock);
@@ -3205,9 +3215,7 @@ reconfigure (xlator_t *this, dict_t *options)
         }
         UNLOCK (&priv->lock);
 
-        GF_OPTION_RECONF ("deem-statfs", priv->consider_statfs, options, bool,
-                          out);
-        GF_OPTION_RECONF ("quota", priv->is_quota_on, options, bool, out);
+
 
         ret = 0;
 out:
@@ -3265,10 +3273,16 @@ struct volume_options options[] = {
                         "consideration while estimating fs size. (df command)"
                         " (Default is off)."
         },
-        {.key = {"quota"},
+        {.key = {"server-quota"},
          .type = GF_OPTION_TYPE_BOOL,
          .default_value = "off",
          .description = "Add something here"
+        },
+        {.key = {"default-soft-limit"},
+         .type = GF_OPTION_TYPE_PERCENT,
+         .default_value = "80%",
+         .min = 0,
+         .max = LONG_MAX,
         },
         {.key = {NULL}}
 };
