@@ -147,8 +147,8 @@ typedef struct quota_local quota_local_t;
 struct qd_vols_conf {
         char                    *name;
         inode_table_t           *itable;
-        int64_t                  log_timeout;
-        gf_boolean_t             is_any_child_down;
+        uint64_t                 log_timeout;
+        double                   default_soft_lim;
         struct limits_level {
                 struct list_head         limit_head;
                 uint64_t                 time_out;
@@ -160,6 +160,7 @@ typedef struct qd_vols_conf qd_vols_conf_t;
 
 struct quota_priv {
         int64_t                 timeout;
+        double                  default_soft_lim;
         gf_boolean_t            is_quota_on;
         gf_boolean_t            consider_statfs;
         struct list_head        limit_head;
@@ -176,9 +177,8 @@ struct limits {
         uuid_t            gfid;
         uint64_t          prev_size;
         struct timeval    prev_log_tv;
-        // Make it uint/size_t
         int64_t           hard_lim;
-        int64_t           soft_lim;
+        double            soft_lim;
 };
 typedef struct limits     limits_t;
 
