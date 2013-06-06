@@ -2998,7 +2998,6 @@ reconfigure (xlator_t *this, dict_t *options)
                           out);
         GF_OPTION_RECONF ("default-soft-limit", priv->default_soft_lim,
                           options, percent, out);
-
         INIT_LIST_HEAD (&head);
 
         LOCK (&priv->lock);
