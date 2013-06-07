@@ -3609,13 +3609,6 @@ glusterd_shd_start ()
 }
 
 int
-glusterd_qc_start ()
-{
-        return glusterd_nodesvc_start ("quotad");
-}
-
-
-int
 glusterd_quotad_start ()
 {
         return glusterd_nodesvc_start ("quotad");
