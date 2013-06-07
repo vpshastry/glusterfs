@@ -912,14 +912,14 @@ struct volopt_map_entry glusterd_volopt_map[] = {
         /* Quota xlator options */
         { .key           = VKEY_FEATURES_LIMIT_USAGE,
           .voltype       = "features/quota",
-          .option        = "!*.limit-set",
+          .option        = "limit-set",
           .type          = NO_DOC,
           .op_version    = 1,
           .client_option = _gf_true
         },
         { .key           = "features.default-soft-limit",
-          .voltype       = "features/quotad",
-          .option        = "!*.default-soft-limit",
+          .voltype       = "features/quota",
+          .option        = "default-soft-limit",
           .value         = "80%",
           .type          = NO_DOC,
           .op_version    = 2

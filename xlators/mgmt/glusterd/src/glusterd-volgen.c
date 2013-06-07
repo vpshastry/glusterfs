@@ -2802,7 +2802,7 @@ quotad_option_handler (volgen_graph_t *graph, struct volopt_map_entry *vme,
                                 return -1;
         }
 
-        if (!strcmp (vme->option, "!*.limit-set")) {
+        if (!strcmp (vme->option, "limit-set")) {
                 ret = gf_asprintf (&opt_str, "%s.limit-set", volinfo->volname);
                         if (-1 != ret) {
                                 ret = xlator_set_option (xl, opt_str, vme->value);
@@ -2820,7 +2820,7 @@ quotad_option_handler (volgen_graph_t *graph, struct volopt_map_entry *vme,
                 if (ret)
                         return -1;
         }
-        if (!strcmp (vme->option, "!*.default-soft-limit")) {
+        if (!strcmp (vme->option, "default-soft-limit")) {
                 ret = gf_asprintf (&opt_str, "%s.default-soft-limit", volinfo->volname);
                         if (-1 != ret) {
                                 ret = xlator_set_option (xl, opt_str, vme->value);
