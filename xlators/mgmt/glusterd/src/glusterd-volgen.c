@@ -3114,107 +3114,6 @@ build_nfs_graph (volgen_graph_t *graph, dict_t *mod_dict)
         return ret;
 }
 
-
-static int
-build_qc_graph (volgen_graph_t *graph, dict_t *mod_dict)
-{
-        volgen_graph_t      cgraph        = {0,};
-        glusterd_volinfo_t *voliter       = NULL;
-        xlator_t           *this          = NULL;
-        glusterd_conf_t    *priv          = NULL;
-        dict_t             *set_dict      = NULL;
-        xlator_t           *quota_xlator  = NULL;
-        int                 ret           = 0;
-        char               *volname       = NULL;
-        data_t             *data          = NULL;
-
-        this = THIS;
-        GF_ASSERT (this);
-        priv = this->private;
-        GF_ASSERT (priv);
-
-        set_dict = dict_new ();
-        if (!set_dict) {
-                gf_log ("", GF_LOG_ERROR, "Out of memory");
-                return -1;
-        }
-
-        quota_xlator = volgen_graph_add_as (graph, "features/quotad",
-                                            "quotad");
-        if (!quota_xlator) {
-                ret     = -1;
-                goto    out;
-        }
-        /* Set all the quota client options */
-
-        list_for_each_entry (voliter, &priv->volumes, vol_list) {
-                if (voliter->status != GLUSTERD_STATUS_STARTED ||
-                                !glusterd_is_quota_on (voliter))
-                        continue;
-
-                ret = dict_set_str (set_dict, "quota-volume-file", "yes");
-                if (ret)
-                        goto out;
-
-                ret = dict_set_uint32 (set_dict, "trusted-client",
-                                       GF_CLIENT_TRUSTED);
-                if (ret)
-                        goto out;
-
-                if (mod_dict && (data = dict_get (mod_dict, "volume-name"))) {
-                        volname = data->data;
-                        if (strcmp (volname, voliter->volname) == 0)
-                                dict_copy (mod_dict, set_dict);
-                }
-
-                memset (&cgraph, 0, sizeof (cgraph));
-                ret = build_client_graph (&cgraph, voliter, set_dict);
-                if (ret)
-                        goto out;
-
-                if (mod_dict) {
-                        dict_copy (mod_dict, set_dict);
-                        ret = volgen_graph_set_options_generic (&cgraph, set_dict, voliter,
-                                                                basic_option_handler);
-                } else {
-                        ret = volgen_graph_set_options_generic (&cgraph, voliter->dict, voliter,
-                                                                basic_option_handler);
-                }
-
-                if (ret)
-                        goto out;
-
-                ret = volgen_graph_merge_sub (graph, &cgraph, 1);
-                if (ret)
-                        goto out;
-                ret = dict_reset (set_dict);
-                if (ret)
-                        goto out;
-        }
-
-        list_for_each_entry (voliter, &priv->volumes, vol_list) {
-
-                if (mod_dict) {
-                        ret = volgen_graph_set_options_generic (graph, mod_dict, voliter,
-                                                                qc_option_handler);
-                } else {
-                        ret = volgen_graph_set_options_generic (graph, voliter->dict, voliter,
-                                                                qc_option_handler);
-                }
-
-                if (ret)
-                        gf_log ("glusterd", GF_LOG_WARNING, "Could not set "
-                                 "vol-options for the volume %s", voliter->volname);
-        }
-
- out:
-        gf_log ("glusterd", GF_LOG_DEBUG, "Returning %d", ret);
-        dict_destroy (set_dict);
-
-        return ret;
-}
-
-
 /****************************
  *
  * Volume generation interface
@@ -3666,18 +3565,6 @@ out:
         if (mod_dict)
                 dict_unref (mod_dict);
         return ret;
-}
-
-int32_t
-glusterd_create_qc_volfile (xlator_t *this, dict_t *dict, char *svc)
-{
-        char                     filepath[PATH_MAX]     = {0,};
-        glusterd_conf_t         *conf                   = THIS->private;
-
-        glusterd_get_nodesvc_volfile ("quotad", conf->workdir, filepath,
-                                      sizeof (filepath));
-
-        return glusterd_create_global_volfile (build_qc_graph, filepath, NULL);
 }
 
 int

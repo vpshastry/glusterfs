@@ -3303,7 +3303,7 @@ glusterd_get_nodesvc_volfile (char *server, char *workdir,
         GF_ASSERT (len == PATH_MAX);
 
         glusterd_get_nodesvc_dir (server, workdir, dir, sizeof (dir));
-        if (strcmp ("quotad", server) != 0)
+        if (strcmp ("quotad", server))
                 snprintf (volfile, len, "%s/%s-server.vol", dir, server);
         else
                 snprintf (volfile, len, "%s/%s.vol", dir, server);
@@ -3898,12 +3898,6 @@ glusterd_reconfigure_shd ()
 }
 
 int
-glusterd_reconfigure_qc ()
-{
-        return glusterd_reconfigure_nodesvc (glusterd_create_qc_volfile);
-}
-
-int
 glusterd_reconfigure_quotad ()
 {
         return glusterd_reconfigure_nodesvc (glusterd_create_quotad_volfile);
@@ -3951,19 +3945,6 @@ glusterd_check_generate_start_shd ()
                                                      glusterd_shd_stop,
                                                      glusterd_shd_start);
         if (ret == -EINVAL)
-                ret = 0;
-        return ret;
-}
-
-int
-glusterd_check_generate_start_qc ()
-{
-        int ret = 0;
-
-        ret = glusterd_check_generate_start_service (glusterd_create_qc_volfile,
-                                                     glusterd_qc_stop,
-                                                     glusterd_qc_start);
-        if (-EINVAL == ret)
                 ret = 0;
         return ret;
 }
