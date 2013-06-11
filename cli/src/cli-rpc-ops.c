@@ -2337,8 +2337,6 @@ gf_cli_print_limit_list (char *volname, char *limit_list,
         char     *avail_str              = NULL;
         char      path [PATH_MAX]        = {0, };
         char      ret_str [1024]         = {0, };
-        char      hard_lim [1024]        = {0, };
-        char      soft_lim [1024]        = {0, };
         char      value [1024]           = {0, };
         char      mountdir []            = "/tmp/mntXXXXXX";
         char      abspath [PATH_MAX]     = {0, };
@@ -2389,7 +2387,7 @@ gf_cli_print_limit_list (char *volname, char *limit_list,
         i = 0;
         if (op_version == 1) {
 
-                cli_out ("\tpath\t\t  limit_set (soft/hard)\t\t     size");
+                cli_out ("\tpath\t\t  limit_set \t\t     size");
                 cli_out ("-----------------------------------------------------"
                          "-----------------------------");
                 while (i < len) {
@@ -2403,13 +2401,7 @@ gf_cli_print_limit_list (char *volname, char *limit_list,
 
                         colon_ptr = strrchr (path, ':');
                         *colon_ptr = '\0';
-                        strcpy (hard_lim, ++colon_ptr);
-
-                        colon_ptr = strrchr (path, ':');
-                        *colon_ptr = '\0';
-                        strcpy (soft_lim, ++colon_ptr);
-
-                        sprintf (value, "%s/%s", soft_lim, hard_lim);
+                        strcpy (value, ++colon_ptr);
 
                         snprintf (abspath, sizeof (abspath), "%s/%s",
                                   mountdir, path);
@@ -2417,17 +2409,17 @@ gf_cli_print_limit_list (char *volname, char *limit_list,
                         ret = sys_lgetxattr (abspath, "trusted.limit.list",
                                              (void *) ret_str, 4096);
                         if (ret < 0) {
-                                cli_out ("%-20s %25s", path, value);
+                                cli_out ("%-20s %10s", path, value);
                         } else {
                                 sscanf (ret_str, "%"PRId64",%"PRId64,
                                         &used_space, &limit_value);
                                 used_str = gf_uint64_2human_readable
                                                        ((uint64_t) used_space);
                                 if (used_str == NULL) {
-                                        cli_out ("%-20s %25s %20"PRId64, path,
+                                        cli_out ("%-20s %10s %20"PRId64, path,
                                                  value, used_space);
                                 } else {
-                                        cli_out ("%-20s %25s %20s", path,
+                                        cli_out ("%-20s %10s %20s", path,
                                                  value, used_str);
                                         GF_FREE (used_str);
                                 }
