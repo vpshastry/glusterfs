@@ -2436,10 +2436,10 @@ gf_cli_print_limit_list (char *volname, char *limit_list,
                 }
         } else {
 
-                cli_out ("\tPath\t\t Hard-limit\t Soft-limit\t Used\t "
-                         "Available");
+                cli_out ("                  Path                   Hard-limit "
+                         "Soft-limit   Used  Available");
                 cli_out ("-----------------------------------------------------"
-                         "-----------------------------");
+                         "---------------------------");
                 while (i < len) {
                         j = 0;
                         sl = hl = NULL;
@@ -2466,7 +2466,8 @@ gf_cli_print_limit_list (char *volname, char *limit_list,
                         ret = sys_lgetxattr (abspath, "trusted.limit.list",
                                              (void *) ret_str, 4096);
                         if (ret < 0) {
-                                cli_out ("%-20s %10s %10s", path, hl, sl_final);
+                                cli_out ("%-40s %7s %9s %11s %7s", path, hl,
+                                         sl_final, "N/A", "N/A");
                         } else {
                                 sscanf (ret_str, "%"PRId64",%"PRId64,
                                         &used_space, &limit_value);
@@ -2477,11 +2478,11 @@ gf_cli_print_limit_list (char *volname, char *limit_list,
                                 avail = hard_limit - used_space;
                                 avail_str = gf_uint64_2human_readable (avail);
                                 if (used_str == NULL) {
-                                        cli_out ("%-20s %10s %10s %20"PRIu64
-                                                 "%20"PRIu64, path, hl,
+                                        cli_out ("%-40s %7s %9s %11"PRIu64
+                                                 "%9"PRIu64, path, hl,
                                                  sl_final, used_space, avail);
                                 } else {
-                                        cli_out ("%-20s %10s %10s %20s %20s",
+                                        cli_out ("%-40s %7s %9s %11s %7s",
                                                  path, hl, sl_final, used_str,
                                                  avail_str);
                                         GF_FREE (used_str);
