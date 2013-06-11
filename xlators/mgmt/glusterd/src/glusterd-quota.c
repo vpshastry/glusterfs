@@ -99,13 +99,15 @@ __glusterd_handle_quota (rpcsvc_request_t *req)
                goto out;
         }
 
-/*        if (conf->op_version == GD_MIN_OP_VERSION &&
-            type > GF_QUOTA_OPTION_TYPE_VERSION) {
+        if ((conf->op_version == GD_OP_VERSION_MIN) &&
+            (type > GF_QUOTA_OPTION_TYPE_VERSION)) {
                 snprintf (msg, sizeof (msg), "Cannot execute command. The "
-                         "cluster is operating at version 1. Upgrade the "
-                         "servers in order to be able to use this option");
-               goto out;
-       } */ 
+                         "cluster is operating at version 1. Executing command "
+                         "%s is disallowed in this state",
+                         gd_quota_op_list[type]);
+                ret = -1;
+                goto out;
+       }
 
         ret = glusterd_op_begin_synctask (req, GD_OP_QUOTA, dict);
 
@@ -575,8 +577,8 @@ glusterd_quota_disable (glusterd_volinfo_t *volinfo, char **op_errstr)
                 } else {
                 dict_del (volinfo->dict, quota_options[i]);
                 }
-/*                if ((i == 0) && conf->op_version == GD_MIN_OP_VERSION)
-                        break; */
+                if ((i == 0) && (conf->op_version == GD_OP_VERSION_MIN))
+                        break;
          }
 
         *op_errstr = gf_strdup ("Disabling quota has been successful");
@@ -654,7 +656,7 @@ glusterd_quota_limit_usage (glusterd_volinfo_t *volinfo, dict_t *dict, char **op
         }
 
         if (quota_limits == NULL) {
-/*                if (priv->op_version == GD_MIN_OP_VERSION) {
+/*                if (priv->op_version == GD_OP_VERSION_MIN) {
                         ret = gf_asprintf (&value, "%s:%s", path, limit);
                         if (ret == -1) {
                                 gf_log ("", GF_LOG_ERROR, "Unable to allocate
@@ -670,9 +672,9 @@ glusterd_quota_limit_usage (glusterd_volinfo_t *volinfo, dict_t *dict, char **op
                         goto out;
                 }
         } else {
-/*              if (priv->op_version == GD_MIN_OP_VERSION) {
-*                      ret = gf_asprintf (&value, "%s,%s:%s",
-                                                    quota_limits, path, limit);
+                if (priv->op_version == GD_OP_VERSION_MIN) {
+                        ret = gf_asprintf (&value, "%s,%s:%s",
+                                           quota_limits, path, limit);
                         if (ret == -1) {
                                 gf_log (this->name, GF_LOG_ERROR, "Unable to "
                                         "allocate memory");
@@ -681,7 +683,7 @@ glusterd_quota_limit_usage (glusterd_volinfo_t *volinfo, dict_t *dict, char **op
                         }
 
                         GF_FREE (quota_limits);
-                } else { */
+                } else {
                         if (!removed_path) {
                                 gf_asprintf (&value, "%s,%s:%s",
                                              quota_limits, path, limit);
@@ -704,7 +706,7 @@ glusterd_quota_limit_usage (glusterd_volinfo_t *volinfo, dict_t *dict, char **op
                                 GF_FREE (removed_path);
                         }
                         GF_FREE (quota_limits);
-//                }
+                }
         }
         quota_limits = value;
 
@@ -953,7 +955,6 @@ glusterd_op_quota (dict_t *dict, char **op_errstr, dict_t *rsp_dict)
         gf_boolean_t            start_crawl  = _gf_false;
         glusterd_conf_t        *priv         = NULL;
         xlator_t               *this         = NULL;
-        uuid_t                  uuid;
 
         GF_ASSERT (dict);
         GF_ASSERT (op_errstr);
@@ -977,16 +978,16 @@ glusterd_op_quota (dict_t *dict, char **op_errstr, dict_t *rsp_dict)
 
         ret = dict_get_int32 (dict, "type", &type);
 
-/*        if ((priv->op_version == GD_MIN_OP_VERSION) &&
+        if ((priv->op_version == GD_OP_VERSION_MIN) &&
             (type > GF_QUOTA_OPTION_TYPE_VERSION)) {
-                *op_errstr = gf_strdup ("Volume quota failed. The cluster is "
+                gf_asprintf (op_errstr, "Volume quota failed. The cluster is "
                                         "operating at version %d. Option %s "
                                         "is disallowed in this state.",
                                         priv->op_version,
                                         gd_quota_op_list[type]);
+                ret = -1;
                 goto out;
-        } */
-
+        }
 
         if (type == GF_QUOTA_OPTION_TYPE_ENABLE) {
                 ret = glusterd_quota_enable (volinfo, op_errstr, &start_crawl);
@@ -1089,26 +1090,26 @@ create_vol:
                 goto out;
 
         if (GLUSTERD_STATUS_STARTED == volinfo->status) {
-//                if (priv->op_version == GD_MIN_OP_VERSION) {
-//                        ret = glusterd_check_generate_start_nfs ();
-//                }
+                if (priv->op_version == GD_OP_VERSION_MIN)
+                        ret = glusterd_check_generate_start_nfs ();
         }
         ret = 0;
 
 out:
         if (rsp_dict && start_crawl == _gf_true)
                 glusterd_quota_initiate_fs_crawl (priv, volname);
-//      if (priv->op_version > GD_MIN_OP_VERSION) {
-                glusterd_get_lock_owner (&uuid);
-        if (!uuid_compare (uuid, MY_UUID)) {
-                if (type != GF_QUOTA_OPTION_TYPE_LIST) {
-                        if (glusterd_all_volumes_with_quota_stopped ())
-                                ret = glusterd_quotad_stop ();
-                        else
-                                ret = glusterd_check_generate_start_quotad ();
+
+        if (priv->op_version > GD_OP_VERSION_MIN) {
+                if (glusterd_do_i_own_the_lock()) {
+                        if (type != GF_QUOTA_OPTION_TYPE_LIST) {
+                                if (glusterd_all_volumes_with_quota_stopped ())
+                                        ret = glusterd_quotad_stop ();
+                                else
+                                        ret = glusterd_check_generate_start_quotad ();
+                        }
                 }
         }
-//      }
+
         if (rsp_dict && *op_errstr) {
                 ret = dict_set_dynstr (rsp_dict, "errstr", *op_errstr);
                 if (ret) {
@@ -1165,15 +1166,17 @@ glusterd_op_stage_quota (dict_t *dict, char **op_errstr)
                 goto out;
         }
 
-/*        if ((priv->op_version == GD_MIN_OP_VERSION) &&
- *            (type > GF_QUOTA_OPTION_TYPE_VERSION)) {
- *                *op_errstr = gf_strdup ("Volume quota failed. The cluster is "
- *                                        "operating at version %d. Option %s "
- *                                        "is disallowed in this state.",
- *                                         priv->op_version,
- *                                         gd_quota_op_list[type]);
- *            goto out;
- *                                                                                                                                                                                } */
+        if ((priv->op_version == GD_OP_VERSION_MIN) &&
+            (type > GF_QUOTA_OPTION_TYPE_VERSION)) {
+                gf_asprintf (op_errstr, "Volume quota failed. The cluster is "
+                                        "operating at version %d. Option %s "
+                                        "is disallowed in this state.",
+                                         priv->op_version,
+                                         gd_quota_op_list[type]);
+                ret = -1;
+                goto out;
+        }
+
          ctx = glusterd_op_get_ctx();
          if (ctx && (type == GF_QUOTA_OPTION_TYPE_ENABLE
                      || type == GF_QUOTA_OPTION_TYPE_LIST)) {
@@ -1192,7 +1195,7 @@ glusterd_op_stage_quota (dict_t *dict, char **op_errstr)
         gf_log (this->name, GF_LOG_DEBUG, "Returning %d", ret);
 
          return ret;
- }
+}
 
 /*int
 glusterd_quota_commit_op_v1 (glusterd_volinfo_t *volinfo, dict_t *dict,

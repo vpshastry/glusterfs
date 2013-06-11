@@ -4025,8 +4025,8 @@ glusterd_nodesvcs_batch_op (glusterd_volinfo_t *volinfo, int (*nfs_op) (),
                         goto out;
         }
 
-//        if (conf->op_version == GD_MIN_OP_VERSION)
-//                goto out;
+        if (conf->op_version == GD_OP_VERSION_MIN)
+                goto out;
 
         if (glusterd_do_i_own_the_lock ()) {
                 ret = qd_op ();

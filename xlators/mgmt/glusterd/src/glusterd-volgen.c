@@ -1590,23 +1590,16 @@ server_graph_builder (volgen_graph_t *graph, glusterd_volinfo_t *volinfo,
         if (ret)
                 return -1;
 
-//      if (conf->op_version > GD_MIN_OP_VERSION) {
         xl = volgen_graph_add (graph, "features/quota", volname);
         if (!xl)
                 return -1;
+
         ret = glusterd_volinfo_get (volinfo, VKEY_FEATURES_QUOTA, &value);
         if (value) {
                 ret = xlator_set_option (xl, "server-quota", value);
                 if (ret)
                         return -1;
         }
-/*      ret = xlator_set_option (xl, "version", GD_MAX_OP_VERSION);
-        if (ret)
-                return -1; */
-//        }
-/*          ret = check_and_add_debug_xl (graph, set_dict, volname, "quota");
-          if (ret)
-                    return -1; */
 
          if (dict_get_str_boolean (set_dict, "features.read-only", 0) &&
             dict_get_str_boolean (set_dict, "features.worm",0)) {
@@ -2471,20 +2464,20 @@ client_graph_builder (volgen_graph_t *graph, glusterd_volinfo_t *volinfo,
         if (ret)
                 goto out;
 
-/*      if (conf->op_version == GD_MIN_OP_VERSION) {
- *              ret = glusterd_volinfo_get_boolean (volinfo,
- *                                                  VKEY_FEATURES_QUOTA);
- *              if (ret == -1)
- *                       goto out;
- *               if (ret) {
- *                       xl = volgen_graph_add (graph, "features/quota",
- *                                              volname);
- *                       if (!xl) {
- *                               ret = -1;
- *                               goto out;
- *                       }
- *               }
- *       } */
+        if (conf->op_version == GD_OP_VERSION_MIN) {
+                ret = glusterd_volinfo_get_boolean (volinfo,
+                                                    VKEY_FEATURES_QUOTA);
+                if (ret == -1)
+                        goto out;
+                if (ret) {
+                        xl = volgen_graph_add (graph, "features/quota",
+                                              volname);
+                        if (!xl) {
+                                ret = -1;
+                                goto out;
+                        }
+                }
+        }
 
         /* Logic to make sure NFS doesn't have performance translators by
            default for a volume */
