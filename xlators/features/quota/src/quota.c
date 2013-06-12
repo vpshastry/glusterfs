@@ -3213,5 +3213,13 @@ struct volume_options options[] = {
          .min = 0,
          .max = LONG_MAX,
         },
+        {.key = {"timeout"},
+         .type = GF_OPTION_TYPE_SIZET,
+         .min = 0,
+         .max = 60,
+         .default_value = "0",
+         .description = "quota caches the directory sizes on client. Timeout "
+                        "indicates the timeout for the cache to be revalidated."
+        },
         {.key = {NULL}}
 };
