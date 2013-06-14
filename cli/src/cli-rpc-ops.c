@@ -2325,9 +2325,9 @@ gf_cli_print_limit_list (char *volname, char *limit_list,
                             char *op_errstr, uint32_t op_version,
                             char *default_sl)
 {
-        uint64_t  used_space             = 0;
-        uint64_t  hard_limit             = 0;
-        uint64_t  avail                  = 0;
+        int64_t   used_space             = 0;
+        int64_t   hard_limit             = 0;
+        int64_t   avail                  = 0;
         int64_t   limit_value            = 0;
         int32_t   i                      = 0;
         int32_t   j                      = 0;
@@ -2342,7 +2342,7 @@ gf_cli_print_limit_list (char *volname, char *limit_list,
         char      abspath [PATH_MAX]     = {0, };
         char     *hl                     = NULL;
         char     *sl                     = NULL;
-        char      *colon_ptr             = NULL;
+        char     *colon_ptr              = NULL;
         runner_t  runner                 = {0,};
         char     *sl_final               = NULL;
 
@@ -2464,11 +2464,14 @@ gf_cli_print_limit_list (char *volname, char *limit_list,
                                 sscanf (ret_str, "%"PRId64",%"PRId64,
                                         &used_space, &limit_value);
                                 used_str = gf_uint64_2human_readable
-                                                        (used_space);
-                                ret = gf_string2bytesize (hl, &hard_limit);
-
-                                avail = hard_limit - used_space;
-                                avail_str = gf_uint64_2human_readable (avail);
+                                                        ((uint64_t) used_space);
+                                ret = gf_string2bytesize (hl, (uint64_t *) &hard_limit);
+                                if (hard_limit > used_space)
+                                        avail = hard_limit - used_space;
+                                else
+                                        avail = 0;
+                                avail_str = gf_uint64_2human_readable
+                                                             ((uint64_t) avail);
                                 if (used_str == NULL) {
                                         cli_out ("%-40s %7s %9s %11"PRIu64
                                                  "%9"PRIu64, path, hl,
