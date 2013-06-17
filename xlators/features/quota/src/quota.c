@@ -390,7 +390,6 @@ quota_lookup_cbk (call_frame_t *frame, void *cookie, xlator_t *this,
         quota_local_t     *local      = NULL;
         quota_inode_ctx_t *ctx        = NULL;
         quota_dentry_t    *dentry     = NULL;
-        int64_t           *size       = 0;
         uint64_t           value      = 0;
         limits_t          *limit_node = NULL;
         quota_priv_t      *priv       = NULL;
@@ -434,16 +433,6 @@ quota_lookup_cbk (call_frame_t *frame, void *cookie, xlator_t *this,
 
         LOCK (&ctx->lock);
         {
-
-                if (dict != NULL) {
-                        ret = dict_get_bin (dict, QUOTA_SIZE_KEY,
-                                            (void **) &size);
-                        if (ret == 0) {
-                                ctx->size = ntoh64 (*size);
-                                gettimeofday (&ctx->tv, NULL);
-                        }
-                }
-
                 ctx->hard_lim = local->hard_lim;
                 ctx->soft_lim = local->soft_lim;
 
@@ -500,7 +489,6 @@ quota_lookup (call_frame_t *frame, xlator_t *this, loc_t *loc,
         quota_priv_t       *priv        = NULL;
         int32_t             ret         = -1;
         limits_t           *limit_node  = NULL;
-        gf_boolean_t        dict_newed  = _gf_false;
         quota_local_t      *local       = NULL;
         int64_t             hard_lim    = -1;
         int64_t             soft_lim    = -1;
@@ -514,6 +502,7 @@ quota_lookup (call_frame_t *frame, xlator_t *this, loc_t *loc,
                 if (strcmp (limit_node->path, loc->path) == 0) {
                         hard_lim = limit_node->hard_lim;
                         soft_lim = limit_node->soft_lim;
+                        break;
                 }
         }
 
@@ -536,16 +525,6 @@ quota_lookup (call_frame_t *frame, xlator_t *this, loc_t *loc,
                 goto wind;
         }
 
-        if (xattr_req == NULL) {
-                xattr_req  = dict_new ();
-                dict_newed = _gf_true;
-        }
-
-        ret = dict_set_uint64 (xattr_req, QUOTA_SIZE_KEY, 0);
-        if (ret < 0) {
-                goto err;
-        }
-
 wind:
         STACK_WIND (frame, priv->is_quota_on? quota_lookup_cbk: default_lookup_cbk,
                     FIRST_CHILD(this), FIRST_CHILD(this)->fops->lookup, loc,
@@ -557,10 +536,6 @@ err:
         if (ret < 0) {
                 QUOTA_STACK_UNWIND (lookup, frame, -1, ENOMEM,
                                     NULL, NULL, NULL, NULL);
-        }
-
-        if (dict_newed == _gf_true) {
-                dict_unref (xattr_req);
         }
 
         return 0;

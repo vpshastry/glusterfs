@@ -117,7 +117,6 @@ typedef struct quota_dentry quota_dentry_t;
 
 struct quota_inode_ctx {
         int64_t          size;
-        int64_t          agg_size;
         int64_t          hard_lim;
         int64_t          soft_lim;
         struct iatt      buf;
