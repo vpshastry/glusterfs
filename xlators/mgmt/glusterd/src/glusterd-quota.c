@@ -675,7 +675,11 @@ glusterd_quota_limit_usage (glusterd_volinfo_t *volinfo, dict_t *dict, char **op
                                              quota_limits, path, limit);
                         } else {
                                 ret = gf_get_soft_limit (removed_path, &sl);
-                                if (ret == 0) {
+                                if (ret == -1) {
+                                        *op_errstr = gf_strdup ("failed to set "
+                                                                "limit");
+                                        goto out;
+                                } else if (ret == 0) {
                                         //ret = 0 implies that the path has no soft-limit explicitly set
                                         gf_asprintf (&value, "%s,%s:%s",
                                                      quota_limits, path, limit);

@@ -2616,7 +2616,7 @@ gf_get_soft_limit (char *limit, char **soft_limit)
 
         if (colon_count != 2) {
                 gf_log ("common-utils", GF_LOG_INFO, "Soft-limit absent");
-                return -1;
+                return 0;
         }
 
         sl = GF_CALLOC (len - i, sizeof (char), gf_common_mt_char);
