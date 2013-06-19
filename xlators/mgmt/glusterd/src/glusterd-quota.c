@@ -1071,11 +1071,13 @@ out:
 //      if (priv->op_version > GD_MIN_OP_VERSION) {
                 glusterd_get_lock_owner (&uuid);
         if (!uuid_compare (uuid, MY_UUID)) {
-                if (glusterd_all_volumes_with_quota_stopped ())
-                        ret = glusterd_quotad_stop ();
-                else
-                        ret = glusterd_check_generate_start_quotad ();
+                if (type != GF_QUOTA_OPTION_TYPE_LIST) {
+                        if (glusterd_all_volumes_with_quota_stopped ())
+                                ret = glusterd_quotad_stop ();
+                        else
+                                ret = glusterd_check_generate_start_quotad ();
                 }
+        }
 //      }
         if (rsp_dict && *op_errstr) {
                 ret = dict_set_dynstr (rsp_dict, "errstr", *op_errstr);
