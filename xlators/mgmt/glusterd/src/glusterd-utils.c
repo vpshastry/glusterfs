@@ -3627,6 +3627,14 @@ glusterd_nodesvc_start (char *server)
                 runner_add_args (&runner, "--xlator-option",
                                  glusterd_uuid_option, NULL);
         }
+        if (!strcmp (server, "quotad")) {
+                runner_add_args (&runner, "--xlator-option",
+                                 "*replicate*.data-self-heal=off",
+                                 "--xlator-option",
+                                 "*replicate*.metadata-self-heal=off",
+                                 "--xlator-option",
+                                 "*replicate*.entry-self-heal=off", NULL);
+        }
         runner_log (&runner, "", GF_LOG_DEBUG,
                     "Starting the nfs/glustershd services");
 
