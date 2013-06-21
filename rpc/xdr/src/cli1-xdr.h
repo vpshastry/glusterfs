@@ -92,6 +92,7 @@ enum gf_quota_type {
 	GF_QUOTA_OPTION_TYPE_ALERT_TIME = 0 + 8,
 	GF_QUOTA_OPTION_TYPE_SOFT_TIMEOUT = 0 + 9,
 	GF_QUOTA_OPTION_TYPE_HARD_TIMEOUT = 0 + 10,
+	GF_QUOTA_OPTION_TYPE_DEFAULT_SOFT_LIMIT = 0 + 11,
 };
 typedef enum gf_quota_type gf_quota_type;
 

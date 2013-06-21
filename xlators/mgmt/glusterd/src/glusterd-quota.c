@@ -468,7 +468,10 @@ glusterd_quota_get_limit_usages (glusterd_conf_t *priv,
 
         ret = glusterd_volinfo_get (volinfo, "features.default-soft-limit",
                                     &default_limit);
-        val = gf_strdup (default_limit);
+        if (default_limit)
+                val = gf_strdup (default_limit);
+        else
+                val = gf_strdup ("90%");
 
         ret = dict_set_dynstr (rsp_dict, "default-soft-limit", val);
 out:
@@ -904,13 +907,13 @@ out:
 }
 
 int
-glusterd_quota_set_timeout (glusterd_volinfo_t *volinfo, dict_t *dict,
-                            char *key, char **op_errstr)
+glusterd_set_quota_option (glusterd_volinfo_t *volinfo, dict_t *dict,
+                           char *key, char **op_errstr)
 {
-        int ret = 0;
-        char *value = NULL;
-        xlator_t *this = NULL;
-        char *timeout  = NULL;
+        int        ret    = 0;
+        char      *value  = NULL;
+        xlator_t  *this   = NULL;
+        char      *option = NULL;
 
         this = THIS;
         GF_ASSERT (this);
@@ -928,8 +931,8 @@ glusterd_quota_set_timeout (glusterd_volinfo_t *volinfo, dict_t *dict,
                 return -1;
         }
 
-        timeout = gf_strdup (value);
-        ret = dict_set_dynstr (volinfo->dict, key, timeout);
+        option = gf_strdup (value);
+        ret = dict_set_dynstr (volinfo->dict, key, option);
         if(ret) {
                 gf_log (this->name, GF_LOG_ERROR, "Failed to set option %s",
                         key);
@@ -1038,27 +1041,35 @@ glusterd_op_quota (dict_t *dict, char **op_errstr, dict_t *rsp_dict)
         }
 
         if (type == GF_QUOTA_OPTION_TYPE_SOFT_TIMEOUT) {
-                ret = glusterd_quota_set_timeout (volinfo, dict,
-                                                  "features.soft-timeout",
-                                                  op_errstr);
+                ret = glusterd_set_quota_option (volinfo, dict,
+                                                 "features.soft-timeout",
+                                                 op_errstr);
                 if (ret)
                         goto out;
                 goto create_vol;
         }
 
         if (type == GF_QUOTA_OPTION_TYPE_HARD_TIMEOUT) {
-                ret = glusterd_quota_set_timeout (volinfo, dict,
-                                                  "features.hard-timeout",
-                                                  op_errstr);
+                ret = glusterd_set_quota_option (volinfo, dict,
+                                                 "features.hard-timeout",
+                                                 op_errstr);
                 if (ret)
                         goto out;
                 goto create_vol;
         }
 
         if (type == GF_QUOTA_OPTION_TYPE_ALERT_TIME) {
-                ret = glusterd_quota_set_timeout (volinfo, dict,
-                                                  "features.alert-time",
-                                                  op_errstr);
+                ret = glusterd_set_quota_option (volinfo, dict,
+                                                 "features.alert-time",
+                                                 op_errstr);
+                if (ret)
+                        goto out;
+                goto create_vol;
+        }
+        if (type == GF_QUOTA_OPTION_TYPE_DEFAULT_SOFT_LIMIT) {
+                ret = glusterd_set_quota_option (volinfo, dict,
+                                                 "features.default-soft-limit",
+                                                 op_errstr);
                 if (ret)
                         goto out;
                 goto create_vol;
@@ -1067,8 +1078,8 @@ glusterd_op_quota (dict_t *dict, char **op_errstr, dict_t *rsp_dict)
 create_vol:
         ret = glusterd_create_volfiles_and_notify_services (volinfo);
         if (ret) {
-                gf_log (this->name, GF_LOG_ERROR, "Unable to re-create volfile for"
-                                          " 'quota'");
+                gf_log (this->name, GF_LOG_ERROR, "Unable to re-create "
+                                                  "volfiles");
                 ret = -1;
                 goto out;
         }

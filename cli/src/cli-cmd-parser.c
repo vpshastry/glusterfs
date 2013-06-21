@@ -534,7 +534,8 @@ cli_cmd_quota_parse (const char **words, int wordcount, dict_t **options)
         char           *opwords[] = { "enable", "disable", "limit-usage",
                                       "remove", "list", "soft-limit",
                                       "alert-time", "soft-timeout",
-                                      "hard-timeout", NULL };
+                                      "hard-timeout", "default-soft-limit",
+                                      NULL};
         char            *w       = NULL;
 
         GF_ASSERT (words);
@@ -744,6 +745,18 @@ cli_cmd_quota_parse (const char **words, int wordcount, dict_t **options)
                         goto out;
                 }
                 type = GF_QUOTA_OPTION_TYPE_HARD_TIMEOUT;
+
+                ret = dict_set_str (dict, "value", (char *)words[4]);
+                if (ret < 0)
+                        goto out;
+                goto set_type;
+        }
+        if (strcmp (w, "default-soft-limit") == 0) {
+                if(wordcount != 5) {
+                        ret = -1;
+                        goto out;
+                }
+                type = GF_QUOTA_OPTION_TYPE_DEFAULT_SOFT_LIMIT;
 
                 ret = dict_set_str (dict, "value", (char *)words[4]);
                 if (ret < 0)
