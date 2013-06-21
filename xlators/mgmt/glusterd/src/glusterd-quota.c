@@ -443,6 +443,10 @@ glusterd_quota_get_limit_usages (glusterd_conf_t *priv,
                         ret = dict_get_str (dict, cmd_str, &path);
                         if (ret < 0)
                                 goto out;
+                        ret = gf_canonicalize_path (path);
+                        if (ret) {
+                                goto out;
+                        }
 
                         ret_str = _glusterd_quota_get_limit_usages (volinfo, path, op_errstr);
                         if (list_str[0] != '\0' && ret_str)
@@ -622,6 +626,11 @@ glusterd_quota_limit_usage (glusterd_volinfo_t *volinfo, dict_t *dict, char **op
                 *op_errstr = gf_strdup ("failed to set limit");
                 goto out;
         }
+        ret = gf_canonicalize_path (path);
+        if (ret) {
+                *op_errstr = gf_strdup ("Failed to set quota limits");
+                goto out;
+        }
 
         ret = dict_get_str (dict, "limit", &limit);
         if (ret) {
@@ -754,6 +763,11 @@ glusterd_quota_soft_limit (glusterd_volinfo_t *volinfo, dict_t *dict,
                 *op_errstr = gf_strdup ("Failed to fetch path");
                 goto out;
         }
+        ret = gf_canonicalize_path (path);
+        if (ret) {
+                *op_errstr = gf_strdup ("Failed to set soft-limits");
+                goto out;
+        }
 
         ret = dict_get_str (dict, "limit", &limit);
         if (ret) {
@@ -845,6 +859,11 @@ glusterd_quota_remove_limits (glusterd_volinfo_t *volinfo, dict_t *dict, char **
         ret = dict_get_str (dict, "path", &path);
         if (ret) {
                 gf_log ("", GF_LOG_ERROR, "Unable to fetch quota limits" );
+                goto out;
+        }
+        ret = gf_canonicalize_path (path);
+        if (ret) {
+                *op_errstr = gf_strdup ("Failed to remove quota limits");
                 goto out;
         }
 
