@@ -24,7 +24,7 @@ quota_time_elapsed (struct timeval *now, struct timeval *then)
 
 
 int32_t
-quota_timeout (struct timeval *tv, time_t timeout)
+quota_timeout (struct timeval *tv, uint64_t timeout)
 {
         struct timeval now       = {0,};
         int32_t        timed_out = 0;
@@ -694,7 +694,6 @@ qd_init (xlator_t *this)
         char            *limits         = NULL;
         int              subvol_cnt     = 0;
         qd_vols_conf_t  *this_vol       = NULL;
-        char            *alert_time_str = NULL;
 
         if (NULL == this->children) {
                 gf_log (this->name, GF_LOG_ERROR,
@@ -757,15 +756,7 @@ qd_init (xlator_t *this)
                                 "gf_asprintf failed");
                         goto err;
                 }
-                GF_OPTION_INIT (option_str, alert_time_str, str, err);
-                /* Don't free up alert_time_str */
-                ret = gf_string2time (alert_time_str,
-                                      (uint32_t *)&this_vol->log_timeout);
-                if (ret) {
-                        gf_log (this->name, GF_LOG_ERROR,
-                                "Couldn't convert time in str to int");
-                        goto err;
-                }
+                GF_OPTION_INIT (option_str, this_vol->log_timeout, time, err);
                 GF_FREE (option_str);
 
                 ret = gf_asprintf (&option_str, "%s.limit-set", this_vol->name);
@@ -797,7 +788,7 @@ qd_init (xlator_t *this)
                         goto err;
                 }
                 GF_OPTION_INIT (option_str, this_vol->below_soft.time_out,
-                                uint64, err);
+                                time, err);
                 GF_FREE (option_str);
 
                 ret = gf_asprintf (&option_str, "%s.hard-timeout",
@@ -808,7 +799,7 @@ qd_init (xlator_t *this)
                         goto err;
                 }
                 GF_OPTION_INIT (option_str, this_vol->above_soft.time_out,
-                                uint64, err);
+                                time, err);
                 GF_FREE (option_str);
         }
 
@@ -905,21 +896,21 @@ struct xlator_cbks cbks = {
 struct volume_options options[] = {
         {.key = {"*.limit-set"}},
         {.key = {"*.soft-timeout"},
-         .type = GF_OPTION_TYPE_SIZET,
+         .type = GF_OPTION_TYPE_TIME,
          .min = 1,
          .max = LONG_MAX,
          .default_value = "10",
          .description = ""
         },
         {.key = {"*.hard-timeout"},
-         .type = GF_OPTION_TYPE_SIZET,
+         .type = GF_OPTION_TYPE_TIME,
          .min = 0,
          .max = LONG_MAX,
          .default_value = "2",
          .description = ""
         },
         {.key = {"*.alert-time"},
-         .type = GF_OPTION_TYPE_SIZET,
+         .type = GF_OPTION_TYPE_TIME,
          .min = 0,
          .max = LONG_MAX,
          /* default weekly (7 * 24 * 60 *60) */

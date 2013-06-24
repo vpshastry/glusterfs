@@ -150,14 +150,14 @@ typedef struct quota_local quota_local_t;
 struct qd_vols_conf {
         char                    *name;
         inode_table_t           *itable;
-        time_t                   log_timeout;
+        uint32_t                 log_timeout;
         gf_boolean_t             threads_status;
         double                   default_soft_lim;
         gf_lock_t                lock;
         loc_t                    root_loc;
         struct limits_level {
                 struct list_head         limit_head;
-                uint64_t                 time_out;
+                uint32_t                 time_out;
                 struct qd_vols_conf     *my_vol;
         } below_soft, above_soft;
 };
