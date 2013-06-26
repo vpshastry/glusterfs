@@ -2492,9 +2492,6 @@ client_graph_builder (volgen_graph_t *graph, glusterd_volinfo_t *volinfo,
         if (ret)
                 goto out;
 
-        if (dict_get (set_dict, ""))
-                goto out;
-
         /* add debug translators depending on the options */
         ret = check_and_add_debug_xl (graph, set_dict, volname,
                                       "client");

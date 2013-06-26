@@ -2304,6 +2304,9 @@ gf_canonicalize_path (char *path)
         if (!path || *path != '/')
                 goto out;
 
+        if (!strcmp (path, "/"))
+                return 0;
+
         tmppath = gf_strdup (path);
         if (!tmppath)
                 goto out;

@@ -409,8 +409,6 @@ int
 glusterd_nfs_statedump (char *options, int option_cnt, char **op_errstr);
 gf_boolean_t
 glusterd_is_volume_replicate (glusterd_volinfo_t *volinfo);
-gf_boolean_t
-glusterd_is_quota_on (glusterd_volinfo_t *volinfo);
 
 gf_boolean_t
 glusterd_is_brick_decommissioned (glusterd_volinfo_t *volinfo, char *hostname,

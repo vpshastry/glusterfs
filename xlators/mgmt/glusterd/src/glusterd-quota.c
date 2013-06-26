@@ -25,18 +25,19 @@
 #include <sys/wait.h>
 
 
-const char *gd_quota_op_list[GF_QUOTA_OPTION_TYPE_HARD_TIMEOUT+1] = {
-        [GF_QUOTA_OPTION_TYPE_NONE]           = "none",
-        [GF_QUOTA_OPTION_TYPE_ENABLE]         = "enable",
-        [GF_QUOTA_OPTION_TYPE_DISABLE]        = "disable",
-        [GF_QUOTA_OPTION_TYPE_LIMIT_USAGE]    = "limit-usage",
-        [GF_QUOTA_OPTION_TYPE_REMOVE]         = "remove",
-        [GF_QUOTA_OPTION_TYPE_LIST]           = "list",
-        [GF_QUOTA_OPTION_TYPE_VERSION]        = "version",
-        [GF_QUOTA_OPTION_TYPE_SOFT_LIMIT]     = "soft-limit",
-        [GF_QUOTA_OPTION_TYPE_ALERT_TIME]     = "alert-time",
-        [GF_QUOTA_OPTION_TYPE_SOFT_TIMEOUT]   = "soft-timeout",
-        [GF_QUOTA_OPTION_TYPE_HARD_TIMEOUT]   = "hard-timeout",
+const char *gd_quota_op_list[GF_QUOTA_OPTION_TYPE_DEFAULT_SOFT_LIMIT+1] = {
+        [GF_QUOTA_OPTION_TYPE_NONE]               = "none",
+        [GF_QUOTA_OPTION_TYPE_ENABLE]             = "enable",
+        [GF_QUOTA_OPTION_TYPE_DISABLE]            = "disable",
+        [GF_QUOTA_OPTION_TYPE_LIMIT_USAGE]        = "limit-usage",
+        [GF_QUOTA_OPTION_TYPE_REMOVE]             = "remove",
+        [GF_QUOTA_OPTION_TYPE_LIST]               = "list",
+        [GF_QUOTA_OPTION_TYPE_VERSION]            = "version",
+        [GF_QUOTA_OPTION_TYPE_SOFT_LIMIT]         = "soft-limit",
+        [GF_QUOTA_OPTION_TYPE_ALERT_TIME]         = "alert-time",
+        [GF_QUOTA_OPTION_TYPE_SOFT_TIMEOUT]       = "soft-timeout",
+        [GF_QUOTA_OPTION_TYPE_HARD_TIMEOUT]       = "hard-timeout",
+        [GF_QUOTA_OPTION_TYPE_DEFAULT_SOFT_LIMIT] = "default-soft-limit",
 };
 
 int
@@ -412,7 +413,7 @@ glusterd_quota_get_limit_usages (glusterd_conf_t *priv,
         char              *path            = NULL;
         char               cmd_str [1024]  = {0, };
         char              *ret_str         = NULL;
-        char               list_str[2048]  = {0,};
+        char               list_str[4096]  = {0,};
         char              *limit_str       = NULL;
         xlator_t          *this            = NULL;
         glusterd_conf_t   *conf            = NULL;
@@ -656,15 +657,6 @@ glusterd_quota_limit_usage (glusterd_volinfo_t *volinfo, dict_t *dict, char **op
         }
 
         if (quota_limits == NULL) {
-/*                if (priv->op_version == GD_OP_VERSION_MIN) {
-                        ret = gf_asprintf (&value, "%s:%s", path, limit);
-                        if (ret == -1) {
-                                gf_log ("", GF_LOG_ERROR, "Unable to allocate
-                                                           memory");
-                                *op_errstr = gf_strdup ("failed to set limit");
-                                goto out;
-                        }
-                } else { */
                 ret = gf_asprintf (&value, "%s:%s", path, limit);
                 if (ret == -1) {
                         gf_log (this->name, GF_LOG_ERROR, "Unable to allocate memory");
@@ -1196,16 +1188,3 @@ glusterd_op_stage_quota (dict_t *dict, char **op_errstr)
 
          return ret;
 }
-
-/*int
-glusterd_quota_commit_op_v1 (glusterd_volinfo_t *volinfo, dict_t *dict,
-                             int type, char **op_errstr, dict_t *rsp_dict)
-{
-}
-
-int
-glusterd_quota_commit_op_v2 (glusterd_volinfo_t *volinfo, dict_t *dict,
-                             int type, char **op_errstr, dict_t *rsp_dict)
-{
-}*/
-

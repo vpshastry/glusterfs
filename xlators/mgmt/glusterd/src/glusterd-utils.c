@@ -3464,13 +3464,10 @@ glusterd_nodesvc_get_rpc (char *server)
         GF_ASSERT (priv->shd);
         GF_ASSERT (priv->nfs);
         GF_ASSERT (priv->quotad);
-        GF_ASSERT (priv->quotad);
 
         if (!strcmp (server, "glustershd"))
                 rpc = priv->shd->rpc;
         else if (!strcmp (server, "nfs"))
-                rpc = priv->nfs->rpc;
-        else if (!strcmp (server, "quotad"))
                 rpc = priv->nfs->rpc;
         else if (!strcmp (server, "quotad"))
                 rpc = priv->quotad->rpc;
@@ -3496,8 +3493,6 @@ glusterd_nodesvc_set_rpc (char *server, struct rpc_clnt *rpc)
         if (!strcmp ("glustershd", server))
                 priv->shd->rpc = rpc;
         else if (!strcmp ("nfs", server))
-                priv->nfs->rpc = rpc;
-        else if (!strcmp ("quotad", server))
                 priv->nfs->rpc = rpc;
         else if (!strcmp ("quotad", server))
                 priv->quotad->rpc = rpc;
@@ -3819,8 +3814,6 @@ glusterd_add_node_to_dict (char *server, dict_t *dict, int count,
                 ret = dict_set_str (dict, key, "NFS Server");
         else if (!strcmp (server, "glustershd"))
                 ret = dict_set_str (dict, key, "Self-heal Daemon");
-        else if (!strcmp (server, "quotad"))
-                ret = dict_set_str (dict, key, "Quota Daemon");
         if (ret)
                 goto out;
 
@@ -4093,22 +4086,6 @@ glusterd_all_replicate_volumes_stopped ()
                 if (!glusterd_is_volume_replicate (voliter))
                         continue;
                 if (voliter->status == GLUSTERD_STATUS_STARTED)
-                        return _gf_false;
-        }
-
-        return _gf_true;
-}
-
-gf_boolean_t
-glusterd_all_quota_volumes_stopped ()
-{
-        glusterd_conf_t         *priv           = THIS->private;
-        glusterd_volinfo_t      *voliter        = NULL;
-
-        list_for_each_entry (voliter, &priv->volumes, vol_list) {
-                if (!glusterd_is_quota_on (voliter))
-                        continue;
-                if (GLUSTERD_STATUS_STARTED == voliter->status)
                         return _gf_false;
         }
 
@@ -5906,21 +5883,6 @@ glusterd_is_volume_replicate (glusterd_volinfo_t *volinfo)
             (volinfo->type == GF_CLUSTER_TYPE_STRIPE_REPLICATE)))
                 replicates = _gf_true;
         return replicates;
-}
-
-gf_boolean_t
-glusterd_is_quota_on (glusterd_volinfo_t *volinfo)
-{
-        int8_t          ret     = 1;
-
-        ret = glusterd_volinfo_get_boolean (volinfo, VKEY_FEATURES_QUOTA);
-        if (-1 == ret) {
-                gf_log ("glusterd", GF_LOG_ERROR, "Couldn't fetch the quota "
-                        "info, assuming quota 'OFF'");
-                ret = _gf_false;
-        }
-
-        return ret;
 }
 
 int
