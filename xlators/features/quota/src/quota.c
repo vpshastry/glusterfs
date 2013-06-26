@@ -718,7 +718,7 @@ quota_writev (call_frame_t *frame, xlator_t *this, fd_t *fd,
                                          dentry->par);
                 if (ret == -1) {
                         op_errno = EDQUOT;
-                        break;
+                        goto unwind;
                 }
         }
 
