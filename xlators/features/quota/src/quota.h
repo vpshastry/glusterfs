@@ -31,7 +31,7 @@
         if (!is_quota_on)                       \
                 goto label;
 
-#define GET_THIS_VOL(list_ptr) ((list_ptr)->my_vol)
+#define GET_CONF(list_ptr) ((list_ptr)->my_vol)
 
 #define DID_CROSS_SOFT_LIMIT(soft_lim, prev_size, cur_size)               \
         ((cur_size) >= (soft_lim) && (prev_size) < (soft_lim))
@@ -154,6 +154,7 @@ struct qd_vols_conf {
         gf_boolean_t             threads_status;
         double                   default_soft_lim;
         gf_lock_t                lock;
+        loc_t                    root_loc;
         struct limits_level {
                 struct list_head         limit_head;
                 uint64_t                 time_out;
