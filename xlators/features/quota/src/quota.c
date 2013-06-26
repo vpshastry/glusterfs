@@ -908,6 +908,8 @@ quota_unlink_cbk (call_frame_t *frame, void *cookie, xlator_t *this,
         quota_local_t     *local = NULL;
         quota_inode_ctx_t *ctx   = NULL;
         uint64_t           value = 0;
+        quota_dentry_t    *dentry = NULL;
+        quota_dentry_t    *old_dentry = NULL;
 
         if (op_ret < 0) {
                 goto out;
@@ -928,6 +930,21 @@ quota_unlink_cbk (call_frame_t *frame, void *cookie, xlator_t *this,
         quota_update_size (this, local->loc.inode, (char *)local->loc.name,
                            local->loc.parent->gfid,
                            (-(ctx->buf.ia_blocks * 512)));
+
+        LOCK (&ctx->lock);
+        {
+                list_for_each_entry (dentry, &ctx->parents, next) {
+                        if ((strcmp (dentry->name, local->loc.name) == 0) &&
+                            (uuid_compare (local->loc.parent->gfid,
+                                           dentry->par) == 0)) {
+                                old_dentry = dentry;
+                                break;
+                        }
+                }
+                if (old_dentry)
+                        __quota_dentry_free (old_dentry);
+        }
+        UNLOCK (&ctx->lock);
 
 out:
         QUOTA_STACK_UNWIND (unlink, frame, op_ret, op_errno, preparent,
