@@ -344,13 +344,7 @@ qd_resolve_component (xlator_t *this,xlator_t *subvol, inode_t *par,
                         if (ret) {
                                 gf_log (this->name, GF_LOG_DEBUG,
                                         "Couldn't reset dict");
-                                dict_unref (*dict_rsp);
-                                *dict_rsp = dict_new ();
-                                if (!*dict_rsp) {
-                                        gf_log (this->name, GF_LOG_ERROR,
-                                                "Dict creation failed");
-                                        goto out;
-                                }
+                                goto out;
                         }
                 }
 
@@ -369,6 +363,7 @@ found:
 out:
         if (xattr_req)
                 dict_unref (xattr_req);
+
 	loc_wipe (&loc);
 
 	return inode;
@@ -377,14 +372,13 @@ out:
 int
 qd_resolve_path (xlator_t *this, xlator_t *subvol, qd_vols_conf_t *this_vol,
                  limits_t *entry, loc_t *root_loc, loc_t *entry_loc,
-                 dict_t **dict_rsp, int reval)
+                 dict_t *dict_req, dict_t **dict_rsp, int reval)
 {
         char                    *component      = NULL;
         char                    *next_component = NULL;
         char                    *saveptr        = NULL;
         char                    *path           = NULL;
         int                      ret            = -1;
-        dict_t                  *dict_req       = NULL;
         struct iatt              piatt          = {0,};
         inode_t                 *parent         = NULL;
         inode_t                 *inode          = NULL;
@@ -420,35 +414,17 @@ qd_resolve_path (xlator_t *this, xlator_t *subvol, qd_vols_conf_t *this_vol,
 
                 /* Get the xattrs in lookup for the last component */
                 if (!next_component) {
-                        if (*dict_rsp) {
-                                ret = dict_reset (*dict_rsp);
-                                if (ret) {
-                                        gf_log (this->name, GF_LOG_DEBUG,
-                                                "Couldn't reset dict");
-                                        dict_unref (*dict_rsp);
-                                        *dict_rsp = dict_new ();
-                                        if (!*dict_rsp) {
-                                                gf_log (this->name, GF_LOG_ERROR,
-                                                        "Dict creation failed");
-                                                goto out;
-                                        }
-                                }
-                        }
-
-                        dict_req = dict_new ();
-                        if (!dict_req) {
-                                gf_log (this->name, GF_LOG_ERROR,
-                                        "ENOMEM while allocating dict");
-                                ret = -1;
-                                goto out;
-                        }
-
                         ret = dict_set_uint64 (dict_req, QUOTA_SIZE_KEY, 0);
                         if (ret)
                                 gf_log (this->name, GF_LOG_ERROR,
                                         "Couldn't set dict");
                 }
 
+                /* Hold a ref on the dict. Because in qd_resolve_component,
+                   it sends a lookup and after the lookup the dictinary is
+                   unrefed, which means the dict will get destroyed.
+                */
+                dict_ref (dict_req);
 		inode = qd_resolve_component (this, subvol, parent, component,
                                               &piatt, dict_req, dict_rsp,
                                               (reval || !next_component));
@@ -468,6 +444,14 @@ qd_resolve_path (xlator_t *this, xlator_t *subvol, qd_vols_conf_t *this_vol,
 			errno = ENOTDIR;
 			break;
 		}
+
+                ret = dict_reset (dict_req);
+                if (ret) {
+                        gf_log (this->name, GF_LOG_WARNING, "dict reset failed");
+                        ret_val = -1;
+                        errno = EINVAL; //Is this errno ok?
+                        goto out;
+                }
 	}
 
 	if (parent && next_component)
@@ -485,7 +469,6 @@ qd_resolve_path (xlator_t *this, xlator_t *subvol, qd_vols_conf_t *this_vol,
 
 	qd_loc_touchup (entry_loc);
 out:
-
 	GF_FREE (path);
 
 	return ret_val;
@@ -519,6 +502,38 @@ qd_log_usage (xlator_t *this, qd_vols_conf_t *this_vol, limits_t *entry,
         }
 }
 
+
+int
+qd_resolve_entry (xlator_t *this, limits_t *entry, loc_t *root_loc,
+                  xlator_t *subvol, qd_vols_conf_t *this_vol, dict_t *dict_req,
+                  dict_t **dict, loc_t *entry_loc, int reval)
+{
+        int32_t          ret            = -1;
+
+        /* reval = 0: fresh lookup
+           reval = 1: revalidate lookup
+           reval > 1: revalidate done.
+        */
+        if (reval > 1)
+                return ret;
+
+        ret = qd_resolve_path (this, subvol, this_vol,
+                               entry, root_loc, entry_loc, dict_req, dict,
+                               reval);
+        if (-1 == ret) {
+                reval++;
+                gf_log (this->name, GF_LOG_WARNING,
+                        "Received %s error for %s (%s)",
+                        strerror (errno), entry->path, this_vol->name);
+                ret = qd_resolve_entry (this, entry, root_loc, subvol,
+                                        this_vol, dict_req, dict, entry_loc,
+                                        reval);
+        }
+
+        return ret;
+}
+
+
 int
 qd_updatexattr (xlator_t *this, struct limits_level *list, loc_t *root_loc,
                 xlator_t *subvol)
@@ -526,54 +541,52 @@ qd_updatexattr (xlator_t *this, struct limits_level *list, loc_t *root_loc,
         limits_t        *entry          = NULL;
         limits_t        *next           = NULL;
         int32_t          ret            = -1;
+        int              reval          = 0;
         loc_t            entry_loc      = {0,};
+        qd_vols_conf_t  *this_vol       = NULL;
         dict_t          *dict           = NULL;
+        int64_t         *size           = NULL;
         int64_t          cur_size       = 0;
         int64_t          prev_size      = 0;
-        int64_t         *size           = NULL;
-        int              reval          = 0;
-        qd_vols_conf_t  *this_vol       = NULL;
+        dict_t          *setxattr_dict  = NULL;
+        dict_t          *dict_req       = NULL;
 
         this_vol = GET_THIS_VOL (list);
 
+        dict_req = dict_new ();
+        if (!dict_req) {
+                ret = -1;
+                goto out;
+        }
+
+        setxattr_dict = dict_new ();
+        if (!setxattr_dict) {
+                ret = -1;
+                goto out;
+        }
+
         list_for_each_entry_safe (entry, next, &list->limit_head, limit_list) {
+                if (dict) {
+                        dict_unref (dict);
+                        dict = NULL;
+                }
+                loc_wipe (&entry_loc);
                 reval = 0;
-
-estale_retry:
-                ret = qd_resolve_path (this, subvol, this_vol,
-                                       entry, root_loc, &entry_loc, &dict,
-                                       reval);
-                if (-1 == ret) {
-                        switch (errno) {
-                        case ESTALE:
-                                if (reval > 0)
-                                        goto reset_dict;
-
-                                loc_wipe (&entry_loc);
-                                ret = dict_reset (dict);
-                                if (ret) {
-                                        gf_log (this->name, GF_LOG_ERROR,
-                                                "Failed to reset dict");
-                                        goto reset_dict;
-                                }
-                                reval ++;
-                                goto estale_retry;
-                        case ENOENT:
-                        case ENOTDIR:
+                ret = qd_resolve_entry (this, entry, root_loc, subvol, this_vol,
+                                        dict_req, &dict, &entry_loc, reval);
+                if (ret) {
+                        if (errno == ENOENT || errno == ENOTDIR)
                                 entry->prev_size = entry->hard_lim;
-                                goto reset_dict;
-                        }
-                        gf_log (this->name, GF_LOG_WARNING,
-                                "Received %s error for %s (%s)",
-                                strerror (errno), entry->path, this_vol->name);
-                        goto reset_dict;
+                        gf_log (this->name, GF_LOG_ERROR, "resolving the entry "
+                                "%s failed (%s)", entry->path, strerror (errno));
+                        continue;
                 }
 
                 ret = dict_get_bin (dict, QUOTA_SIZE_KEY, (void **)&size);
                 if (0 != ret) {
                         gf_log (this->name, GF_LOG_WARNING, "Couldn't get size"
-                                " from the dict");
-                        goto reset_dict;
+                                " from the dict (%s)", entry->path);
+                        continue;
                 }
 
                 cur_size = ntoh64 (*size);
@@ -582,68 +595,34 @@ estale_retry:
 
                 /* if size hasn't changed, just skip the updation */
                 if (entry->prev_size == cur_size)
-                        goto reset_dict;
+                        continue;
 
                 prev_size = entry->prev_size;
 
-                QUOTA_ALLOC_OR_GOTO (size, int64_t, reset_dict);
+                QUOTA_ALLOC_OR_GOTO (size, int64_t, out);
                 *size = hton64 (cur_size);
 
-                ret = dict_reset (dict);
-                if (ret) {
-                        gf_log (this->name, GF_LOG_DEBUG,
-                                "Couldn't reset dict");
-                        dict_unref (dict);
-                        dict = dict_new ();
-                        if (!dict) {
-                                gf_log (this->name, GF_LOG_ERROR,
-                                        "Dict creation failed");
-                                goto reset_dict;
-                        }
-                }
-
-                ret = dict_set_bin (dict, QUOTA_UPDATE_USAGE_KEY, size,
+                ret = dict_set_bin (setxattr_dict, QUOTA_UPDATE_USAGE_KEY, size,
                                     sizeof (int64_t));
                 if (-1 == ret) {
                         gf_log (this->name, GF_LOG_WARNING,
                                 "Couldn't set dict");
-                        goto reset_dict;
+                        continue;
                 }
 
-                ret = syncop_setxattr (subvol, &entry_loc, dict, 0);
+
+                /* There is a possibility that, after a setxattr is done,
+                   a rename might happen and the resolve will fail again.
+                */
+                ret = syncop_setxattr (subvol, &entry_loc, setxattr_dict, 0);
                 if (-1 == ret) {
-                        switch (errno) {
-                        case ENOENT:
-                                entry->prev_size = entry->hard_lim;
-                                break;
-                        case ESTALE:
-                                if (reval > 1)
-                                        goto reset_dict;
-
-                                loc_wipe (&entry_loc);
-                                ret = dict_reset (dict);
-                                if (ret) {
-                                        gf_log (this->name, GF_LOG_DEBUG,
-                                                "Couldn't reset dict");
-                                        dict_unref (dict);
-                                        dict = dict_new ();
-                                        if (!dict) {
-                                                gf_log (this->name, GF_LOG_ERROR,
-                                                        "Dict creation failed");
-                                                goto reset_dict;
-                                        }
-                                }
-                                reval ++;
-                                goto estale_retry;
-                        } /* end switch */
-
                         gf_log (this->name, GF_LOG_ERROR,
                                 "Received ERROR:%s in updating quota value %s "
-                                " (vol:%s). Quota enforcement may not be accurate",
-                                strerror (errno), entry->path, this_vol->name);
-                        goto reset_dict;
+                                " (vol:%s). Quota enforcement may not be"
+                                " accurate", strerror (errno), entry->path,
+                                this_vol->name);
+                        continue;
                 }
-
 
                 /* Move the limit-node to the corresponding list,
                  * based on the usage */
@@ -651,30 +630,31 @@ estale_retry:
                 {
                         /* usage > soft_limit? */
                         if (prev_size < entry->soft_lim &&
-                                        cur_size >= entry->soft_lim)
+                            cur_size >= entry->soft_lim)
                                 list_move (&entry->limit_list,
                                            &(this_vol->above_soft.limit_head));
                         /* usage < soft_limit? */
                         else if (prev_size >= entry->soft_lim &&
-                                        cur_size < entry->soft_lim)
+                                 cur_size < entry->soft_lim)
                                 list_move (&entry->limit_list,
                                            &(this_vol->below_soft.limit_head));
 
                         entry->prev_size = cur_size;
                 }
                 UNLOCK (&this_vol->lock);
-
-reset_dict:
-                if (dict) {
-                        ret = dict_reset (dict);
-                        if (ret)
-                                gf_log (this->name, GF_LOG_WARNING,
-                                        "dict reset failed");
-                }
-                loc_wipe (&entry_loc);
         }
+
+out:
+        if (setxattr_dict)
+                dict_unref (setxattr_dict);
+        if (dict_req)
+                dict_unref (dict_req);
+        if (dict)
+                dict_unref (dict);
+        loc_wipe (&entry_loc);
         return ret;
 }
+
 
 int
 qd_trigger_periodically (void *args)
@@ -899,12 +879,12 @@ qd_init (xlator_t *this)
                 }
 
                 ret = qd_parse_limits (priv, this, limits, NULL, this_vol);
-                GF_FREE (option_str);
                 if (ret) {
                         gf_log (this->name, GF_LOG_ERROR,
                                 "Couldn't parse limits for %s", this_vol->name);
                         goto err;
                 }
+                GF_FREE (option_str);
 
                 ret = gf_asprintf (&option_str, "%s.soft-timeout", this_vol->name);
                 if (0 > ret) {
