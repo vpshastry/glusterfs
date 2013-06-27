@@ -59,8 +59,8 @@ qd_resolve_root (xlator_t *subvol, loc_t *root_loc,
 
         ret = syncop_lookup (subvol, root_loc, dict_req, iatt, dict_rsp, NULL);
         if (-1 == ret) {
-                gf_log (subvol->name, GF_LOG_ERROR, "Received %s for lookup on /"
-                        " (%s)", strerror (errno), subvol->name);
+                gf_log (subvol->name, GF_LOG_ERROR, "Received %s for lookup "
+                         "on / (vol:%s)", strerror (errno), subvol->name);
         }
         return ret;
 }
@@ -71,7 +71,7 @@ qd_build_root_loc (xlator_t *this, xlator_t *subvol, inode_t *inode, loc_t *loc)
 
         loc->path = gf_strdup ("/");
         loc->inode = inode;
-        memset (loc->gfid, 0, 16);
+        uuid_clear (loc->gfid);
         loc->gfid[15] = 1;
 
         return qd_resolve_root (subvol, loc, NULL, NULL, NULL);
@@ -103,7 +103,8 @@ mem_acct_init (xlator_t *this)
  *
  * Format for limit string
  * <limit-string> = <limit-on-single-dir>[,<limit-on-single-dir>]*
- * <limit-on-single-dir> = <abs-path-from-volume-root>:<hard-limit>[:<soft-limit-%>]
+ * <limit-on-single-dir> =
+ *                    <abs-path-from-volume-root>:<hard-limit>[:<soft-limit-%>]
  */
 int
 qd_parse_limits (quota_priv_t *priv, xlator_t *this, char *limit_str,
@@ -142,7 +143,7 @@ qd_parse_limits (quota_priv_t *priv, xlator_t *this, char *limit_str,
 
                         str_val = strtok_r (NULL, ",", &saveptr_dir);
 
-                        soft_l = -1;
+                        soft_l = this_vol->default_soft_lim;
                         if (str_val) {
                                 ret = gf_string2percent (str_val, &soft_l);
                                 if (ret)
@@ -151,12 +152,16 @@ qd_parse_limits (quota_priv_t *priv, xlator_t *this, char *limit_str,
                                                 "percent. Using default soft "
                                                 "limit");
                         }
-                        if (-1 == soft_l)
-                                soft_l = this_vol->default_soft_lim;
 
-                        quota_lim->soft_lim = (int64_t) quota_lim->hard_lim * (soft_l / 100);
+                        quota_lim->soft_lim = (int64_t) quota_lim->hard_lim *
+                                                                (soft_l / 100);
 
                         quota_lim->path = gf_strdup (path);
+                        if (!quota_lim->path) {
+                                gf_log (this->name, GF_LOG_ERROR, "ENOMEM "
+                                        "Received copying the path");
+                                goto err;
+                        }
 
                         quota_lim->prev_size = quota_lim->hard_lim;
 
@@ -223,18 +228,18 @@ qd_log_usage (xlator_t *this, qd_vols_conf_t *this_vol, limits_t *entry,
 
         gettimeofday (&cur_time, NULL);
 
-        if (DID_CROSS_SOFT_LIMIT (entry->soft_lim, entry->prev_size, cur_size)) {
+        if (DID_CROSS_SOFT_LIMIT (entry->soft_lim,
+                                  entry->prev_size, cur_size)) {
                 entry->prev_log_tv = cur_time;
                 gf_log (this->name, GF_LOG_ALERT, "Usage crossed soft limit:"
                         " %ld for %s", entry->soft_lim, entry->path);
         }
         if (cur_size > entry->soft_lim &&
-                   quota_timeout (&entry->prev_log_tv, this_vol->log_timeout)) {
+                  quota_timeout (&entry->prev_log_tv, this_vol->log_timeout)) {
                 entry->prev_log_tv = cur_time;
                 gf_log (this->name, GF_LOG_ALERT, "Usage %ld %s limit for %s",
-                        cur_size,
-                        (cur_size > entry->hard_lim)? "has reached hard": "is above soft",
-                        entry->path);
+                        cur_size, (cur_size > entry->hard_lim)?
+                        "has reached hard": "is above soft", entry->path);
         }
 }
 
@@ -248,7 +253,8 @@ qd_build_child_loc (loc_t *child, loc_t *parent, char *name)
         if (strcmp (parent->path, "/") == 0)
                 gf_asprintf ((char **)&child->path, "/%s", name);
         else
-                gf_asprintf ((char **)&child->path, "%s/%s", parent->path, name);
+                gf_asprintf ((char **)&child->path, "%s/%s", parent->path,
+                             name);
 
         if (!child->path) {
                 goto err;
@@ -307,7 +313,7 @@ qd_check_enforce (qd_vols_conf_t *conf, dict_t *dict, limits_t *entry,
         QUOTA_ALLOC_OR_GOTO (size, int64_t, out);
         *size = hton64 (cur_size);
 
-        setxattr_dict = dict_new(); 
+        setxattr_dict = dict_new();
         ret = dict_set_bin (setxattr_dict, QUOTA_UPDATE_USAGE_KEY, size,
                            sizeof (int64_t));
         if (-1 == ret) {
@@ -572,7 +578,8 @@ qd_trigger_periodically (void *args)
 
         root_inode = qd_build_root_inode (this, conf);
         if (!root_inode) {
-                gf_log (this->name, GF_LOG_ERROR, "New itable creation failed");
+                gf_log (this->name, GF_LOG_ERROR,
+                        "New itable creation failed");
                 return -1;
         }
 
@@ -707,8 +714,8 @@ qd_init (xlator_t *this)
              subvol;
              subvol_cnt++, subvol = subvol->next);
 
-        priv->qd_vols_conf = GF_CALLOC (sizeof (qd_vols_conf_t *),
-                                        subvol_cnt, gf_quota_mt_qd_vols_conf_t);
+        priv->qd_vols_conf = GF_CALLOC (sizeof (qd_vols_conf_t *), subvol_cnt,
+                                        gf_quota_mt_qd_vols_conf_t);
         if (!priv->qd_vols_conf) {
                 gf_log (this->name, GF_LOG_ERROR, "Failed to allocate memory");
                 goto err;
@@ -732,17 +739,19 @@ qd_init (xlator_t *this)
                 this_vol->below_soft.my_vol =
                 this_vol->above_soft.my_vol = this_vol;
 
-                ret = gf_asprintf (&option_str, "%s.default-soft-limit", this_vol->name);
+                ret = gf_asprintf (&option_str, "%s.default-soft-limit",
+                                   this_vol->name);
                 if (0 > ret) {
                         gf_log (this->name, GF_LOG_ERROR,
                                 "gf_asprintf failed");
                         goto err;
                 }
-                GF_OPTION_INIT (option_str, this_vol->default_soft_lim,
-                                percent, err);
+                GF_OPTION_INIT (option_str, this_vol->default_soft_lim, percent,
+                                err);
                 GF_FREE (option_str);
 
-                ret = gf_asprintf (&option_str, "%s.alert-time", this_vol->name);
+                ret = gf_asprintf (&option_str, "%s.alert-time",
+                                   this_vol->name);
                 if (0 > ret) {
                         gf_log (this->name, GF_LOG_ERROR,
                                 "gf_asprintf failed");
@@ -780,7 +789,8 @@ qd_init (xlator_t *this)
                 }
                 GF_FREE (option_str);
 
-                ret = gf_asprintf (&option_str, "%s.soft-timeout", this_vol->name);
+                ret = gf_asprintf (&option_str, "%s.soft-timeout",
+                                   this_vol->name);
                 if (0 > ret) {
                         gf_log (this->name, GF_LOG_ERROR,
                                 "gf_asprintf failed");
@@ -790,7 +800,8 @@ qd_init (xlator_t *this)
                                 uint64, err);
                 GF_FREE (option_str);
 
-                ret = gf_asprintf (&option_str, "%s.hard-timeout", this_vol->name);
+                ret = gf_asprintf (&option_str, "%s.hard-timeout",
+                                   this_vol->name);
                 if (0 > ret) {
                         gf_log (this->name, GF_LOG_ERROR,
                                 "gf_asprintf failed");
@@ -838,7 +849,7 @@ qd_notify (xlator_t *this, int event, void *data, ...)
         priv = this->private;
 
         for (i=0, subvol = this->children; subvol; i++, subvol = subvol->next) {
-                if (0 == strcmp (priv->qd_vols_conf[i]->name, subvol_rec->name))
+                if (! strcmp (priv->qd_vols_conf[i]->name, subvol_rec->name))
                         break;
         }
         if (!subvol) {
@@ -855,8 +866,8 @@ qd_notify (xlator_t *this, int event, void *data, ...)
 
                         ret = qd_start_threads (this, i);
                         if (-1 == ret) {
-                                gf_log (this->name, GF_LOG_ERROR,
-                                        "Couldn't start the threads for volumes");
+                                gf_log (this->name, GF_LOG_ERROR, "Couldn't "
+                                        "start the threads for volumes");
                                 goto out;
                         }
                 }
