@@ -547,6 +547,9 @@ glusterd_is_volume_quota_enabled (glusterd_volinfo_t *volinfo);
 gf_boolean_t
 glusterd_all_volumes_with_quota_stopped ();
 
+int
+glusterd_reconfigure_quotad ();
+
 gf_boolean_t
 glusterd_do_i_own_the_lock ();
 #endif

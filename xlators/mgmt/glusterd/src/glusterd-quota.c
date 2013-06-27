@@ -1093,11 +1093,14 @@ out:
 
         if (priv->op_version > GD_OP_VERSION_MIN) {
                 if (glusterd_do_i_own_the_lock()) {
-                        if (type != GF_QUOTA_OPTION_TYPE_LIST) {
+                        if (type == GF_QUOTA_OPTION_TYPE_ENABLE ||
+                            type == GF_QUOTA_OPTION_TYPE_DISABLE) {
                                 if (glusterd_all_volumes_with_quota_stopped ())
                                         ret = glusterd_quotad_stop ();
                                 else
                                         ret = glusterd_check_generate_start_quotad ();
+                        } else if (type != GF_QUOTA_OPTION_TYPE_LIST) {
+                                ret = glusterd_reconfigure_quotad ();
                         }
                 }
         }
