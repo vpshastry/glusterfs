@@ -307,10 +307,23 @@ _build_option_key (dict_t *d, char *k, data_t *v, void *tmp)
         char                    reconfig_key[256] = {0, };
         struct args_pack        *pack             = NULL;
         int                     ret               = -1;
+        xlator_t                *this             = NULL;
+        glusterd_conf_t         *priv             = NULL;
+
+        this = THIS;
+        GF_ASSERT (this);
+        priv = this->private;
+        GF_ASSERT (priv);
 
         pack = tmp;
         if (strcmp (k, GLUSTERD_GLOBAL_OPT_VERSION) == 0)
                 return 0;
+
+        if (priv->op_version > GD_OP_VERSION_MIN) {
+                if ((strcmp (k, "features.limit-usage") == 0) ||
+                    (strcmp (k, "features.soft-limit") == 0))
+                        return 0;
+        }
         snprintf (reconfig_key, 256, "volume%d.option.%s",
                   pack->vol_count, k);
         ret = dict_set_str (pack->dict, reconfig_key, v->data);
