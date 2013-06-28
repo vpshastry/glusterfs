@@ -563,6 +563,8 @@ qd_trigger_periodically (void *args)
         xlator_t                *subvol         = NULL;
         inode_t                 *root_inode     = NULL;
         qd_vols_conf_t          *conf           = NULL;
+        struct timeval           start          = {0,};
+        struct timeval           end            = {0,};
 
         this = THIS;
         list = args;
@@ -591,6 +593,8 @@ qd_trigger_periodically (void *args)
         }
 
         while (1) {
+                gettimeofday (&start, NULL);
+
                 if (!list_empty (&list->limit_head)) {
                         ret = qd_iterator (conf, subvol, list);
                         if (ret)
@@ -600,7 +604,10 @@ qd_trigger_periodically (void *args)
                                         "limit");
                 }
 
-                sleep ((unsigned int) (list->time_out));
+                gettimeofday (&end, NULL);
+                if (quota_time_elapsed (&end, &start) < list->time_out)
+                        sleep ((unsigned int) (list->time_out -
+                                            quota_time_elapsed (&end, &start)));
         }
 
 out:
