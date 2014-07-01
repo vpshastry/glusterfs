@@ -1110,7 +1110,7 @@ __glusterd_handle_cli_probe (rpcsvc_request_t *req)
         }
 
         if (!(ret = glusterd_friend_find_by_hostname (hostname, &peerinfo))) {
-                if (strcmp (peerinfo->hostname, hostname) == 0) {
+                if (gd_peer_has_address (peerinfo, hostname)) {
 
                         gf_log ("glusterd", GF_LOG_DEBUG, "Probe host %s port "
                                 "%d already a peer", hostname, port);
