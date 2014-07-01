@@ -211,15 +211,44 @@ glusterd_big_locked_cbk (struct rpc_req *req, struct iovec *iov,
 }
 
 int
+glusterd_update_friends (xlator_t *this, glusterd_peerinfo_t *peerinfo,
+                         call_frame_t *frame)
+{
+        int                             ret     = -1;
+        glusterd_friend_sm_event_t     *event   = NULL;
+
+        ret = glusterd_friend_sm_new_event
+                                     (GD_FRIEND_EVENT_INIT_FRIEND_REQ, &event);
+        if (ret) {
+                gf_log (this->name, GF_LOG_ERROR,
+                         "Unable to get event");
+                return ret;
+        }
+
+        event->peerinfo = peerinfo;
+        event->ctx      = ((call_frame_t *) frame)->local;
+        ((call_frame_t *)frame)->local = NULL;
+
+        ret = glusterd_friend_sm_inject_event (event);
+        if (!ret) {
+                glusterd_friend_sm ();
+                glusterd_op_sm ();
+        }
+
+        gf_log (this->name, GF_LOG_INFO, "Received resp to probe req");
+        return ret;
+}
+
+int
 __glusterd_probe_cbk (struct rpc_req *req, struct iovec *iov,
-                        int count, void *myframe)
+                      int count, void *myframe)
 {
         gd1_mgmt_probe_rsp    rsp   = {{0},};
         int                   ret   = 0;
         glusterd_peerinfo_t           *peerinfo = NULL;
-        glusterd_friend_sm_event_t    *event = NULL;
         glusterd_probe_ctx_t          *ctx = NULL;
         xlator_t                      *this = THIS;
+        glusterd_conf_t               *priv = this->private;
 
         if (-1 == req->rpc_status) {
                 goto out;
@@ -260,34 +289,23 @@ __glusterd_probe_cbk (struct rpc_req *req, struct iovec *iov,
                 GF_ASSERT (0);
         }
 
-        if (uuid_compare (rsp.uuid, peerinfo->uuid) == 0) {
-                gf_log (THIS->name, GF_LOG_DEBUG, "Adding the Host: %s  with "
-                        "uuid: %s to already present peer info",
-                        rsp.hostname, uuid_utoa (rsp.uuid));
+        if (priv->op_version >= GD_OP_VERSION_3_6_0) {
+                if (uuid_compare (rsp.uuid, peerinfo->uuid) == 0) {
+                        gf_log (THIS->name, GF_LOG_DEBUG, "Adding the Host: "
+                                "%s  with uuid: %s to already present peer "
+                                "info", rsp.hostname, uuid_utoa (rsp.uuid));
 
-                ctx = ((call_frame_t *)myframe)->local;
-                ((call_frame_t *)myframe)->local = NULL;
+                        ret = gd_add_address_to_peer (peerinfo, rsp.hostname);
+                        if (ret) {
+                                gf_log (this->name, GF_LOG_ERROR,
+                                        "Couldn't add hostname to peer list");
+                                goto out;
+                        }
 
-                GF_ASSERT (ctx);
-
-                ret = gd_add_address_to_peer (peerinfo, rsp.hostname);
-                if (ret)
-                        gf_log (this->name, GF_LOG_ERROR,
-                                "Couldn't add hostname to peer list");
-
-                rsp.op_errno = GF_PROBE_FRIEND;
-                if (ctx->req) {
-                        glusterd_xfer_cli_probe_resp (ctx->req, rsp.op_ret,
-                                                      rsp.op_errno,
-                                                      rsp.op_errstr,
-                                                      ctx->hostname, ctx->port,
-                                                      ctx->dict);
+                        ret = glusterd_update_friends (this, peerinfo,
+                                                       myframe);
+                        goto out;
                 }
-
-                glusterd_destroy_probe_ctx (ctx);
-                (void) glusterd_friend_remove (NULL, rsp.hostname);
-                ret = rsp.op_ret;
-                goto out;
         }
 
         if (strncasecmp (rsp.hostname, peerinfo->hostname, 1024)) {
@@ -317,27 +335,7 @@ __glusterd_probe_cbk (struct rpc_req *req, struct iovec *iov,
 
         uuid_copy (peerinfo->uuid, rsp.uuid);
 
-        ret = glusterd_friend_sm_new_event
-                        (GD_FRIEND_EVENT_INIT_FRIEND_REQ, &event);
-
-        if (ret) {
-                gf_log ("glusterd", GF_LOG_ERROR,
-                         "Unable to get event");
-                goto out;
-        }
-
-        event->peerinfo = peerinfo;
-        event->ctx      = ((call_frame_t *)myframe)->local;
-        ((call_frame_t *)myframe)->local = NULL;
-        ret = glusterd_friend_sm_inject_event (event);
-
-
-        if (!ret) {
-                glusterd_friend_sm ();
-                glusterd_op_sm ();
-        }
-
-        gf_log ("glusterd", GF_LOG_INFO, "Received resp to probe req");
+        ret = glusterd_update_friends (this, peerinfo, myframe);
 
 out:
         free (rsp.hostname);//malloced by xdr
