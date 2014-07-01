@@ -10,6 +10,8 @@
 
 #include "glusterd-peer-utils.h"
 #include "glusterd-store.h"
+#include "common-utils.h"
+
 int32_t
 glusterd_friend_cleanup (glusterd_peerinfo_t *peerinfo)
 {
@@ -73,32 +75,15 @@ out:
         return ret;
 }
 
-glusterd_peerinfo_t *
-glusterd_search_hostname (xlator_t *this, const char *hoststr1,
-                          const char *hoststr2)
-{
-        glusterd_peerinfo_t            *peer            = NULL;
-        glusterd_peer_hostname_t       *tmphost         = NULL;
-        glusterd_conf_t                *priv            = this->private;
-
-        GF_ASSERT (priv);
-        GF_ASSERT (hoststr1);
-
-        list_for_each_entry (peer, &priv->peers, uuid_list)
-                list_for_each_entry (tmphost, &peer->hostnames,hostname_list)
-                        if (!strncasecmp (tmphost->hostname, hoststr1, 1024) ||
-                            (hoststr2 &&
-                             !strncasecmp (tmphost->hostname,hoststr2, 1024))){
-
-                                gf_log (this->name, GF_LOG_DEBUG,
-                                        "Friend %s found.. state: %d",
-                                        tmphost->hostname, peer->state.state);
-                                return peer;
-                        }
-
-        return NULL;
-}
-
+/* glusterd_friend_find_by_hostname searches for a peer which matches the
+ * hostname @hoststr and if found stores the pointer to peerinfo object in
+ * @peerinfo.
+ * Returns 0 on success and -1 on failure.
+ *
+ * It first attempts a quick search by string matching @hoststr. If that fails,
+ * it'll attempt a more thorough match by resolving the addresses and matching
+ * the resolved addrinfos.
+ */
 int
 glusterd_friend_find_by_hostname (const char *hoststr,
                                   glusterd_peerinfo_t  **peerinfo)
@@ -106,11 +91,6 @@ glusterd_friend_find_by_hostname (const char *hoststr,
         int                             ret             = -1;
         struct addrinfo                *addr            = NULL;
         struct addrinfo                *p               = NULL;
-        char                           *host            = NULL;
-        struct sockaddr_in6            *s6              = NULL;
-        struct sockaddr_in             *s4              = NULL;
-        struct in_addr                 *in_addr         = NULL;
-        char                            hname[1024]     = {0,};
         xlator_t                       *this            = NULL;
 
 
@@ -120,7 +100,7 @@ glusterd_friend_find_by_hostname (const char *hoststr,
 
         *peerinfo = NULL;
 
-        *peerinfo = glusterd_search_hostname (this, hoststr, NULL);
+        *peerinfo = gd_find_peerinfo_from_hostname (this, hoststr);
         if (*peerinfo)
                 return 0;
 
@@ -133,26 +113,7 @@ glusterd_friend_find_by_hostname (const char *hoststr,
         }
 
         for (p = addr; p != NULL; p = p->ai_next) {
-                switch (p->ai_family) {
-                        case AF_INET:
-                                s4 = (struct sockaddr_in *) p->ai_addr;
-                                in_addr = &s4->sin_addr;
-                                break;
-                        case AF_INET6:
-                                s6 = (struct sockaddr_in6 *) p->ai_addr;
-                                in_addr =(struct in_addr *) &s6->sin6_addr;
-                                break;
-                       default: ret = -1;
-                                goto out;
-                }
-                host = inet_ntoa(*in_addr);
-
-                ret = getnameinfo (p->ai_addr, p->ai_addrlen, hname,
-                                   1024, NULL, 0, 0);
-                if (ret)
-                        goto out;
-
-                *peerinfo = glusterd_search_hostname (this, host, hname);
+                *peerinfo = gd_find_peerinfo_from_addrinfo (this, p);
                 if (*peerinfo) {
                         freeaddrinfo (addr);
                         return 0;
@@ -685,4 +646,92 @@ out:
         gf_log (this ? this->name : "glusterd", GF_LOG_DEBUG, "Returning %d",
                 ret);
         return ret;
+}
+
+/* gd_find_peerinfo_from_hostname iterates over all the addresses saved for each
+ * peer and matches it to @hoststr.
+ * Returns the matched peer if found else returns NULL
+ */
+glusterd_peerinfo_t *
+gd_find_peerinfo_from_hostname (xlator_t *this, const char *hoststr)
+{
+        glusterd_peerinfo_t      *peer    = NULL;
+        glusterd_peer_hostname_t *tmphost = NULL;
+        glusterd_conf_t          *priv    = NULL;
+
+        GF_ASSERT (this != NULL);
+        GF_VALIDATE_OR_GOTO (this->name, (hoststr != NULL), out);
+
+        priv = this->private;
+        GF_VALIDATE_OR_GOTO (this->name, (priv != NULL), out);
+
+        list_for_each_entry (peer, &priv->peers, uuid_list) {
+                list_for_each_entry (tmphost, &peer->hostnames,hostname_list) {
+                        if (!strncasecmp (tmphost->hostname, hoststr, 1024)) {
+                                gf_log (this->name, GF_LOG_DEBUG,
+                                        "Friend %s found.. state: %d",
+                                        tmphost->hostname, peer->state.state);
+                                return peer;
+                        }
+                }
+        }
+out:
+        return NULL;
+}
+
+/* gd_find_peerinfo_from_addrinfo iterates over all the addresses saved for each
+ * peer, resolves them and compares them to @addr.
+ *
+ *
+ * NOTE: As getaddrinfo is a blocking call and is being performed multiple times
+ * in this function, it could lead to the calling thread to be blocked for
+ * significant amounts of time.
+ *
+ * Returns the matched peer if found else returns NULL
+ */
+glusterd_peerinfo_t *
+gd_find_peerinfo_from_addrinfo (xlator_t *this, const struct addrinfo *addr)
+{
+        glusterd_conf_t          *conf    = NULL;
+        glusterd_peerinfo_t      *peer    = NULL;
+        glusterd_peer_hostname_t *address = NULL;
+        int ret = 0;
+        struct addrinfo          *paddr   = NULL;
+        struct addrinfo          *tmp     = NULL;
+
+        GF_ASSERT (this != NULL);
+        GF_VALIDATE_OR_GOTO (this->name, (addr != NULL), out);
+
+        conf = this->private;
+        GF_VALIDATE_OR_GOTO (this->name, (conf != NULL), out);
+
+        list_for_each_entry (peer, &conf->peers, uuid_list) {
+                list_for_each_entry (address, &peer->hostnames, hostname_list) {
+                        /* TODO: Cache the resolved addrinfos to improve
+                         * performance
+                         */
+                        ret = getaddrinfo (address->hostname, NULL, NULL,
+                                           &paddr);
+                        if (ret) {
+                                /* Don't fail if getaddrinfo fails, continue
+                                 * onto the next address
+                                 */
+                                gf_log (this->name, GF_LOG_TRACE,
+                                        "getaddrinfo for %s failed (%s)",
+                                        address->hostname, gai_strerror (ret));
+                                ret = 0;
+                                continue;
+                        }
+
+                        for (tmp = paddr; tmp != NULL; tmp = tmp->ai_next) {
+                                if (gf_compare_addrinfo (addr->ai_addr,
+                                                         tmp->ai_addr)) {
+                                        freeaddrinfo (paddr);
+                                        return peer;
+                                }
+                        }
+                }
+        }
+out:
+        return NULL;
 }
