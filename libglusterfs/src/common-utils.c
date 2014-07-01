@@ -3253,14 +3253,14 @@ gf_check_logger (const char *value)
         return logger;
 }
 
-/* gf_compare_addrinfo compares the given addresses @addr1 and @addr2 for
+/* gf_compare_sockaddr compares the given addresses @addr1 and @addr2 for
  * equality, ie. if they both refer to the same address.
  *
  * This was inspired by sock_addr_cmp_addr() from
  * https://www.opensource.apple.com/source/postfix/postfix-197/postfix/src/util/sock_addr.c
  */
 gf_boolean_t
-gf_compare_addrinfo (const struct sockaddr *addr1,
+gf_compare_sockaddr (const struct sockaddr *addr1,
                      const struct sockaddr *addr2)
 {
         GF_ASSERT (addr1 != NULL);

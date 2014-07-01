@@ -724,7 +724,7 @@ gd_find_peerinfo_from_addrinfo (xlator_t *this, const struct addrinfo *addr)
                         }
 
                         for (tmp = paddr; tmp != NULL; tmp = tmp->ai_next) {
-                                if (gf_compare_addrinfo (addr->ai_addr,
+                                if (gf_compare_sockaddr (addr->ai_addr,
                                                          tmp->ai_addr)) {
                                         freeaddrinfo (paddr);
                                         return peer;

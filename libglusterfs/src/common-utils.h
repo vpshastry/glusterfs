@@ -645,6 +645,6 @@ int
 gf_check_logger (const char *value);
 
 gf_boolean_t
-gf_compare_addrinfo (const struct sockaddr *addr1,
+gf_compare_sockaddr (const struct sockaddr *addr1,
                      const struct sockaddr *addr2);
 #endif /* _COMMON_UTILS_H */
